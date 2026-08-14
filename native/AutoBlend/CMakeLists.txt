@@ -133,3 +133,18 @@ add_custom_target(CopyAutoBlendNativeExportDLLs ALL
 
 add_dependencies(CopyAutoBlendNativeExportDLLs AutoBlendNativeExportNE)
 add_dependencies(${EXE_NAME} CopyAutoBlendNativeExportDLLs)
+
+#
+# autoblend.ini
+#
+# Same convention as AutoSeasons' own AS.ini: an otherwise-unused marker file (content "Empty")
+# sitting next to the exe, so a mod manager sees a recognizable per-mod ini file to attach to this
+# folder instead of nothing at all.
+#
+add_custom_command(
+    TARGET ${EXE_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/autoblend.ini"
+        "${CMAKE_BINARY_DIR}/bin/autoblend.ini"
+    COMMENT "Copying autoblend.ini to build/bin"
+)
