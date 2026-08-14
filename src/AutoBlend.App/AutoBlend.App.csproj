@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutoBlend.Core\AutoBlend.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <!-- .NET 9 apphosts are /CETCOMPAT by default, which terminates the process the moment an
+         injected DLL (like MO2's USVFS) redirects thread context outside the shadow stack — see
+         https://learn.microsoft.com/en-us/dotnet/core/compatibility/interop/9.0/cet-support.
+         That's exactly what breaks launching this app through MO2's custom-executable list. -->
+    <CETCompat>false</CETCompat>
+  </PropertyGroup>
+
+</Project>

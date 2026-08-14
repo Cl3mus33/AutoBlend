@@ -1,0 +1,29 @@
+# Build output (CMake + Ninja + vcpkg)
+buildRelease/
+build/
+out/
+
+# .NET build artifacts (outside buildRelease, if generated in-place)
+ASMutagenNE/bin/
+ASMutagenNE/obj/
+ASMutagen/bin/
+ASMutagen/obj/
+*.csproj.user
+
+# Generated from ASMutagen.csproj.in by CMake's configure_file() (see ASMutagen/CMakeLists.txt) -
+# bakes in the local build directory's absolute path, so the checked-in copy is machine-specific.
+ASMutagen/ASMutagen.csproj
+
+# Per-user, per-run app data - never something to ship in the repo
+AutoSeasons_config.json
+AutoSeasons_Output/
+
+# IDE / editor
+.vs/
+.vscode/
+*.user
+CMakeUserPresets.json
+
+# OS cruft
+Thumbs.db
+.DS_Store

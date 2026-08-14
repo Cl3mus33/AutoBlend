@@ -1,0 +1,9 @@
+// icon.rc
+//
+// Deliberately no "#define IDI_ICON1 101" here: the RC compiler's preprocessor would substitute
+// IDI_ICON1 -> 101 in the line below, embedding the icon under the NUMERIC resource ID 101. But
+// wxICON(IDI_ICON1) (used in LauncherWindow.cpp/ProgressWindow.cpp) stringifies its argument and
+// looks the icon up by NAME ("IDI_ICON1") at runtime via LoadIcon - a name/ID mismatch that fails
+// with ERROR_RESOURCE_TYPE_NOT_FOUND (0x715), even though the RC compile step itself succeeds.
+// Leaving IDI_ICON1 undefined keeps it a literal resource name, matching the name-based lookup.
+IDI_ICON1 ICON "icon.ico"

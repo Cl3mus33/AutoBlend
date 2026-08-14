@@ -1,0 +1,16 @@
+﻿<Application x:Class="AutoBlend.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:AutoBlend.App"
+             xmlns:conv="clr-namespace:AutoBlend.App.Converters"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/DarkTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <conv:EnumEqualsVisibilityConverter x:Key="EnumEqualsVisibilityConverter"/>
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

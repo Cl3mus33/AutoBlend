@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutoBlend.Core\AutoBlend.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DNNE" Version="2.1.2" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateNativeExports>true</GenerateNativeExports>
+    <DnneRuntimeIdentifier>win-x64</DnneRuntimeIdentifier>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <DnneSelfContained_Experimental>true</DnneSelfContained_Experimental>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Configurations>Release;Debug</Configurations>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>x64</Platforms>
+    <!-- DNNE generates AutoBlend.NativeExportNE.{dll,h,lib} alongside the managed assembly — a
+         thin native shim that hosts the CLR and forwards C calls into the [UnmanagedCallersOnly]
+         exports in Exports.cs, exactly the pattern AutoSeasons' own ASMutagenNE.dll/.h/.lib uses
+         to call its Mutagen-based logic from a native shell (confirmed by reading its ASMutagen.csproj
+         and ASMutagen/CMakeLists.txt directly) — the properties above mirror that proven-working
+         config. Unlike ASMutagen, this project skips FlatBuffers: the whole patch pipeline is one
+         coarse-grained call (start_patch_run/get_progress polling a JSON blob), so there's no need
+         for AutoSeasons' many fine-grained typed calls. -->
+  </PropertyGroup>
+
+</Project>

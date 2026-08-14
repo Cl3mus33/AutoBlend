@@ -1,0 +1,26 @@
+# Native shell build output (CMake + Ninja + vcpkg)
+native/buildRelease/
+native/build/
+native/out/
+
+# .NET build artifacts
+bin/
+obj/
+*.csproj.user
+
+# Old WPF publish output (regenerate with `dotnet publish`, don't commit)
+publish/
+
+# Per-user, per-run app data - never something to ship in the repo
+AutoBlend_Output/
+native-startup.log
+
+# IDE / editor
+.vs/
+.vscode/
+*.user
+CMakeUserPresets.json
+
+# OS cruft
+Thumbs.db
+.DS_Store
