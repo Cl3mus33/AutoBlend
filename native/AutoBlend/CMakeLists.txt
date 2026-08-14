@@ -148,3 +148,19 @@ add_custom_command(
         "${CMAKE_BINARY_DIR}/bin/autoblend.ini"
     COMMENT "Copying autoblend.ini to build/bin"
 )
+
+#
+# GUI translations
+#
+# Same convention as AutoSeasons' own AutoSeasons_translations/ - one JSON file per language, read
+# by ABLocale at startup from a folder named after this tool specifically (same collision-avoidance
+# reasoning as AutoBlend_dotnetlib above).
+#
+add_custom_command(
+    TARGET ${EXE_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin/AutoBlend_translations"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/AutoBlend_translations"
+        "${CMAKE_BINARY_DIR}/bin/AutoBlend_translations"
+    COMMENT "Copying AutoBlend_translations to build/bin"
+)

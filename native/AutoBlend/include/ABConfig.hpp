@@ -28,6 +28,11 @@ struct ABLandscapeFolderRule {
  * read/write the very same %APPDATA%\AutoBlend\settings.json without any translation layer.
  */
 struct ABParams {
+    /// @brief GUI language code (AutoBlend_translations/&lt;code&gt;.json); English if missing.
+    std::string uiLanguage = "en";
+    /// @brief GUI color theme: "system", "light", or "dark".
+    std::string uiTheme = "system";
+
     std::wstring gameLocation;
     ABGameType gameType = ABGameType::SKYRIM_SE;
     std::wstring outputLocation;

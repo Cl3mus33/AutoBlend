@@ -40,3 +40,7 @@ First release.
   executable list. `autoblend.ini` (content "Empty", same convention as AutoSeasons' `AS.ini`) is
   shipped next to the exe on every build, so dropping the build output into a `mods/` folder is
   enough for MO2 to recognize it as a mod.
+- Localized GUI (EN/FR/ES/DE/IT/PT-BR) and a System/Light/Dark theme selector, both ported from
+  AutoSeasons' own `ASLocale`/theme-switching pattern — changing the language rebuilds the launcher
+  in place, changing the theme restarts the process (wx's dark-mode support can't reliably toggle
+  back within one running process).

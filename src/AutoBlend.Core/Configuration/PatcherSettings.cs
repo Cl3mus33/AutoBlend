@@ -8,6 +8,14 @@ namespace AutoBlend.Core.Configuration;
 /// </summary>
 public sealed class PatcherSettings
 {
+    /// <summary>GUI language code (AutoBlend_translations/&lt;code&gt;.json, native shell only);
+    /// English if missing. Rides along in the shared settings file purely so both shells could, in
+    /// principle, agree on it - the WPF shell doesn't currently read this itself.</summary>
+    public string UiLanguage { get; set; } = "en";
+
+    /// <summary>GUI color theme (native shell only): "system", "light", or "dark".</summary>
+    public string UiTheme { get; set; } = "system";
+
     public string GameLocation { get; set; } = string.Empty;
     public GameType GameType { get; set; } = GameType.SkyrimSE;
     public string OutputLocation { get; set; } = string.Empty;

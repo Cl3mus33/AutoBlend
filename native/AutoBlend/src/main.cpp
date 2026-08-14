@@ -1,4 +1,5 @@
 #include "ABConfig.hpp"
+#include "ABLocale.hpp"
 #include "GUI/LauncherWindow.hpp"
 #include "GUI/ProgressWindow.hpp"
 #include "util/ExceptionHandler.hpp"
@@ -137,24 +138,89 @@ auto runGUI(const filesystem::path& exePath) -> int
         ShowWindow(consoleWindow, SW_HIDE);
     }
 
-    // AutoBlend always runs dark - no theme choice to apply before window creation (unlike
-    // AutoSeasons, which offers System/Light/Dark).
-    wxTheApp->SetAppearance(wxApp::Appearance::Dark);
-    wxTheApp->MSWEnableDarkMode(wxApp::DarkMode_Always);
-
     auto params = ABConfig::load();
     startupLog("runGUI: settings loaded");
     if (params.outputLocation.empty()) {
         params.outputLocation = (exePath / "AutoBlend_Output").wstring();
     }
 
-    auto* launcher = new LauncherWindow(params, exePath); // NOLINT(cppcoreguidelines-owning-memory)
-    startupLog("runGUI: LauncherWindow constructed, showing modal");
-    const int launcherResult = launcher->ShowModal();
-    if (launcherResult == wxID_OK) {
-        launcher->getParams(params);
+    ABLocale::init(exePath / "AutoBlend_translations", params.uiLanguage);
+
+    int launcherResult = 0;
+    do {
+        // Applying the appearance must happen before the window it affects is created (it's a
+        // wxApp-level setting, not something that live-updates already-shown windows) - re-applied
+        // every loop iteration so a theme change made in the launcher takes effect on relaunch.
+        wxApp::Appearance appearance = wxApp::Appearance::System;
+        if (params.uiTheme == "light") {
+            appearance = wxApp::Appearance::Light;
+        } else if (params.uiTheme == "dark") {
+            appearance = wxApp::Appearance::Dark;
+        }
+        if (wxTheApp->SetAppearance(appearance) != wxApp::AppearanceResult::Ok) {
+            // Not fatal - the dialog still opens, just without the requested forced appearance
+            // (this can happen if the OS/wxWidgets version combination doesn't support overriding
+            // the system-wide light/dark preference per-app).
+            startupLog("runGUI: could not apply the requested \"" + params.uiTheme + "\" theme; falling back to system appearance.");
+        }
+        // SetAppearance() alone only covers a few high-level things (e.g. the title bar) -
+        // painting individual controls (buttons, list boxes, etc.) in dark colors needs wx's
+        // separate MSW-specific "experimental" dark mode support turned on via MSWEnableDarkMode().
+        // Deliberately only called for "dark" specifically, with DarkMode_Always: calling it with
+        // DarkMode_Auto (follow system) turned out to override SetAppearance(Light) too - once
+        // dark-capable rendering is enabled at all, an OS in dark mode wins regardless of what
+        // SetAppearance() was told, which broke explicit "Light" whenever the OS itself was dark.
+        // Only forcing it on for "dark" keeps "Light" reliably light and "Dark" reliably dark, at
+        // the cost of "System" not fully dark-painting every control when the OS is dark (its
+        // title bar still follows via SetAppearance(System) above) - picking "Dark" directly covers
+        // that case fully.
+        if (params.uiTheme == "dark") {
+            wxTheApp->MSWEnableDarkMode(wxApp::DarkMode_Always);
+        }
+
+        auto* launcher = new LauncherWindow(params, exePath); // NOLINT(cppcoreguidelines-owning-memory)
+        startupLog("runGUI: LauncherWindow constructed, showing modal");
+        launcherResult = launcher->ShowModal();
+        if (launcherResult == wxID_OK || launcherResult == LauncherWindow::RESULT_RELAUNCH
+            || launcherResult == LauncherWindow::RESULT_RESTART) {
+            // Preserve the current (possibly unsaved) field values in memory across the rebuild
+            // triggered by a language/theme change, so the relaunched window shows the same values.
+            launcher->getParams(params);
+        }
+        launcher->Destroy();
+    } while (launcherResult == LauncherWindow::RESULT_RELAUNCH);
+
+    if (launcherResult == LauncherWindow::RESULT_RESTART) {
+        ABConfig::save(params);
+
+        // Respawn a fresh process so wx's MSW dark mode support starts clean with the new theme -
+        // see LauncherWindow::onThemeChanged() for why an in-process relaunch isn't reliable here.
+        // wxEntryCleanup() is deliberately deferred until after this attempt (and the message box
+        // below) - calling it first would tear down wx before a failure could be reported through
+        // it, so a failed respawn would silently close the window with zero explanation, looking
+        // exactly like a crash.
+        STARTUPINFOW startupInfo {};
+        startupInfo.cb = sizeof(startupInfo);
+        PROCESS_INFORMATION processInfo {};
+        const auto exeFullPath = (exePath / "AutoBlend.exe").wstring();
+        const auto workingDir = exePath.wstring();
+        if (CreateProcessW(exeFullPath.c_str(), nullptr, nullptr, nullptr, FALSE, 0, nullptr, workingDir.c_str(),
+                &startupInfo, &processInfo)
+            != 0) {
+            CloseHandle(processInfo.hProcess);
+            CloseHandle(processInfo.hThread);
+        } else {
+            const auto errorCode = GetLastError();
+            startupLog("runGUI: failed to restart AutoBlend after the theme change (error " + to_string(errorCode) + ")");
+            wxMessageBox(wxString::Format("AutoBlend couldn't restart itself after the theme change (error %lu). "
+                                          "Please relaunch it manually.",
+                             errorCode),
+                "AutoBlend", wxOK | wxICON_ERROR);
+        }
+
+        wxEntryCleanup();
+        return 0;
     }
-    launcher->Destroy();
 
     if (launcherResult != wxID_OK) {
         wxEntryCleanup();

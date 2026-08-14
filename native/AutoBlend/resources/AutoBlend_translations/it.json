@@ -1,0 +1,72 @@
+{
+  "_language": "Italiano",
+  "common": {
+    "browse": "Sfoglia",
+    "cancel": "Annulla"
+  },
+  "launcher": {
+    "intro": "Analizza il tuo ordine di caricamento alla ricerca di varianti di texture del paesaggio (sottocartelle statics/blending sotto */landscape/) e patcha le mesh corrispondenti passando da alpha-test ad alpha-blend, generando un plugin di output dedicato con i texture set derivati.",
+    "gameLocation": {
+      "label": "Posizione del gioco",
+      "dialogTitle": "Seleziona la posizione del gioco"
+    },
+    "outputLocation": {
+      "label": "Posizione di output",
+      "dialogTitle": "Seleziona la posizione di output"
+    },
+    "modManager": {
+      "label": "Gestore mod",
+      "none": "Nessuno / Vortex",
+      "mo2": "Mod Organizer 2"
+    },
+    "mo2InstancePath": {
+      "label": "Percorso istanza MO2",
+      "dialogTitle": "Seleziona la cartella dell'istanza MO2"
+    },
+    "meshBlacklist": {
+      "label": "Lista nera delle mesh",
+      "help": "Le mesh che corrispondono a una regola qui non vengono mai patchate. Caratteri jolly (*) consentiti, es. \"*\\glass\\*\". Clic destro per aggiungere/rimuovere righe.",
+      "column": "Regola"
+    },
+    "editorIdKeywords": {
+      "label": "Parole chiave EditorID in lista nera",
+      "help": "I record il cui EditorID contiene una di queste parole (senza distinzione tra maiuscole/minuscole) vengono saltati del tutto - utile quando l'alpha-test è intenzionale (es. \"ice\", \"glass\"). Clic destro per aggiungere/rimuovere righe.",
+      "column": "Parola chiave"
+    },
+    "language": {
+      "label": "Lingua"
+    },
+    "theme": {
+      "label": "Tema",
+      "system": "Sistema",
+      "light": "Chiaro",
+      "dark": "Scuro"
+    },
+    "startButton": "Avvia patch",
+    "missingGameLocation": {
+      "message": "Seleziona la posizione di installazione del tuo gioco.",
+      "title": "Posizione del gioco mancante"
+    },
+    "missingOutputLocation": {
+      "message": "Seleziona una posizione di output.",
+      "title": "Posizione di output mancante"
+    },
+    "missingMo2Instance": {
+      "message": "Seleziona la cartella della tua istanza di Mod Organizer 2.",
+      "title": "Istanza MO2 mancante"
+    }
+  },
+  "progress": {
+    "starting": "Avvio in corso...",
+    "showDetails": "Mostra dettagli",
+    "working": "In corso...",
+    "done": "Fatto.",
+    "failed": "Non riuscito - vedi i dettagli sotto.",
+    "doneClose": "Fatto - Chiudi",
+    "failedClose": "Non riuscito - Chiudi",
+    "completion": {
+      "message": "Generazione completata. Non dimenticare di attivare il plugin di output di AutoBlend nell'elenco dei plugin del tuo gestore mod, se non è già attivo.",
+      "title": "AutoBlend"
+    }
+  }
+}

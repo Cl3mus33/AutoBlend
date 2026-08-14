@@ -1,0 +1,72 @@
+{
+  "_language": "Français",
+  "common": {
+    "browse": "Parcourir",
+    "cancel": "Annuler"
+  },
+  "launcher": {
+    "intro": "Analyse votre ordre de chargement à la recherche de variantes de textures de paysage (sous-dossiers statics/blending sous */landscape/) et patche les meshes correspondants pour passer de l'alpha-test à l'alpha-blend, en générant un plugin de sortie dédié avec les texture sets dérivés.",
+    "gameLocation": {
+      "label": "Emplacement du jeu",
+      "dialogTitle": "Sélectionner l'emplacement du jeu"
+    },
+    "outputLocation": {
+      "label": "Emplacement de sortie",
+      "dialogTitle": "Sélectionner l'emplacement de sortie"
+    },
+    "modManager": {
+      "label": "Gestionnaire de mods",
+      "none": "Aucun / Vortex",
+      "mo2": "Mod Organizer 2"
+    },
+    "mo2InstancePath": {
+      "label": "Chemin de l'instance MO2",
+      "dialogTitle": "Sélectionner le dossier de l'instance MO2"
+    },
+    "meshBlacklist": {
+      "label": "Liste noire de meshes",
+      "help": "Les meshes correspondant à une règle ici ne sont jamais patchés. Jokers (*) autorisés, ex. \"*\\glass\\*\". Clic droit pour ajouter/supprimer des lignes.",
+      "column": "Règle"
+    },
+    "editorIdKeywords": {
+      "label": "Mots-clés EditorID en liste noire",
+      "help": "Les enregistrements dont l'EditorID contient l'un de ces mots (insensible à la casse) sont entièrement ignorés - utile lorsque l'alpha-test est intentionnel (ex. \"ice\", \"glass\"). Clic droit pour ajouter/supprimer des lignes.",
+      "column": "Mot-clé"
+    },
+    "language": {
+      "label": "Langue"
+    },
+    "theme": {
+      "label": "Thème",
+      "system": "Système",
+      "light": "Clair",
+      "dark": "Sombre"
+    },
+    "startButton": "Démarrer le patch",
+    "missingGameLocation": {
+      "message": "Veuillez sélectionner l'emplacement d'installation de votre jeu.",
+      "title": "Emplacement du jeu manquant"
+    },
+    "missingOutputLocation": {
+      "message": "Veuillez sélectionner un emplacement de sortie.",
+      "title": "Emplacement de sortie manquant"
+    },
+    "missingMo2Instance": {
+      "message": "Veuillez sélectionner le dossier de votre instance Mod Organizer 2.",
+      "title": "Instance MO2 manquante"
+    }
+  },
+  "progress": {
+    "starting": "Démarrage...",
+    "showDetails": "Afficher les détails",
+    "working": "En cours...",
+    "done": "Terminé.",
+    "failed": "Échec - voir les détails ci-dessous.",
+    "doneClose": "Terminé - Fermer",
+    "failedClose": "Échec - Fermer",
+    "completion": {
+      "message": "Génération terminée. N'oubliez pas d'activer le plugin de sortie d'AutoBlend dans la liste des plugins de votre gestionnaire de mods s'il ne l'est pas déjà.",
+      "title": "AutoBlend"
+    }
+  }
+}

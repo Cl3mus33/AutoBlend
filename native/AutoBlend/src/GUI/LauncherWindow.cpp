@@ -29,7 +29,7 @@ auto makeSectionLabel(wxWindow* parent, const wxString& text) -> wxStaticText*
 }
 
 LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exePath)
-    : wxDialog(nullptr, wxID_ANY, "AutoBlend", wxDefaultPosition, wxSize(600, 700), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+    : wxDialog(nullptr, wxID_ANY, "AutoBlend", wxDefaultPosition, wxSize(600, 800), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
     , m_exePath(std::move(exePath))
     , m_textureSetNamingTemplate(initParams.textureSetNamingTemplate)
 {
@@ -65,6 +65,48 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
             "generating a dedicated output plugin with the derived texture sets."));
     introText->Wrap(530);
     bodySizer->Add(introText, 0, wxALL, BORDER_SIZE * 2);
+
+    // Language selector - changing it immediately relaunches the window (see onLanguageChanged)
+    // rather than requiring a separate settings dialog/OK click, since this launcher is small
+    // enough that a full rebuild is cheap and this keeps the UX to a single click.
+    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.language.label", "Language")), 0,
+        wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
+
+    m_languages = ABLocale::getAvailableLanguages();
+    wxArrayString languageChoices;
+    int selectedLanguageIndex = 0;
+    for (size_t i = 0; i < m_languages.size(); i++) {
+        languageChoices.Add(m_languages.at(i).displayName);
+        if (m_languages.at(i).code == ABLocale::getCurrentLanguage()) {
+            selectedLanguageIndex = static_cast<int>(i);
+        }
+    }
+    m_languageChoice = new wxChoice(body, wxID_ANY, wxDefaultPosition, wxDefaultSize, languageChoices);
+    if (!m_languages.empty()) {
+        m_languageChoice->SetSelection(selectedLanguageIndex);
+    }
+    m_languageChoice->Bind(wxEVT_CHOICE, &LauncherWindow::onLanguageChanged, this);
+    bodySizer->Add(m_languageChoice, 0, wxEXPAND | wxALL, BORDER_SIZE);
+
+    // Theme selector - same immediate-relaunch pattern as the language selector, since applying a
+    // wxWidgets appearance change requires it to be set before the window it affects is created.
+    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.theme.label", "Theme")), 0,
+        wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
+
+    wxArrayString themeChoices;
+    themeChoices.Add(ABTr("launcher.theme.system", "System"));
+    themeChoices.Add(ABTr("launcher.theme.light", "Light"));
+    themeChoices.Add(ABTr("launcher.theme.dark", "Dark"));
+    m_themeChoice = new wxChoice(body, wxID_ANY, wxDefaultPosition, wxDefaultSize, themeChoices);
+    int selectedThemeIndex = 0;
+    if (initParams.uiTheme == "light") {
+        selectedThemeIndex = 1;
+    } else if (initParams.uiTheme == "dark") {
+        selectedThemeIndex = 2;
+    }
+    m_themeChoice->SetSelection(selectedThemeIndex);
+    m_themeChoice->Bind(wxEVT_CHOICE, &LauncherWindow::onThemeChanged, this);
+    bodySizer->Add(m_themeChoice, 0, wxEXPAND | wxALL, BORDER_SIZE);
 
     // Game location
     bodySizer->Add(makeSectionLabel(body, ABTr("launcher.gameLocation.label", "Game Location")), 0,
@@ -204,6 +246,19 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
 
 void LauncherWindow::getParams(ABParams& outParams) const
 {
+    outParams.uiLanguage = ABLocale::getCurrentLanguage();
+    switch (m_themeChoice->GetSelection()) {
+    case 1:
+        outParams.uiTheme = "light";
+        break;
+    case 2:
+        outParams.uiTheme = "dark";
+        break;
+    default:
+        outParams.uiTheme = "system";
+        break;
+    }
+
     outParams.gameLocation = m_gameLocationTextbox->GetValue().ToStdWstring();
     // Skyrim LE is not offered in the UI - the backend (AutoBlend.Core, via Mutagen) still
     // supports it, but nothing in this shell currently exposes a way to pick it.
@@ -235,6 +290,31 @@ void LauncherWindow::getParams(ABParams& outParams) const
             outParams.editorIdBlacklistKeywords.push_back(text.ToStdWstring());
         }
     }
+}
+
+void LauncherWindow::onLanguageChanged([[maybe_unused]] wxCommandEvent& event)
+{
+    const int selection = m_languageChoice->GetSelection();
+    if (selection == wxNOT_FOUND) {
+        return;
+    }
+
+    const auto& selectedLang = m_languages.at(static_cast<size_t>(selection));
+    if (selectedLang.code == ABLocale::getCurrentLanguage()) {
+        return;
+    }
+
+    ABLocale::init(m_exePath / "AutoBlend_translations", selectedLang.code);
+    EndModal(RESULT_RELAUNCH);
+}
+
+void LauncherWindow::onThemeChanged([[maybe_unused]] wxCommandEvent& event)
+{
+    // Unlike a language change, this needs a full process restart, not just an internal rebuild -
+    // wx's MSW dark mode support turned out to be a one-way switch once enabled for a process, so
+    // an in-process relaunch can't reliably get back to a lighter appearance after a darker one.
+    // See main.cpp's handling of RESULT_RESTART.
+    EndModal(RESULT_RESTART);
 }
 
 void LauncherWindow::onBrowseGameLocation([[maybe_unused]] wxCommandEvent& event)

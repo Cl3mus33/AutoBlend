@@ -1,0 +1,72 @@
+{
+  "_language": "English",
+  "common": {
+    "browse": "Browse",
+    "cancel": "Cancel"
+  },
+  "launcher": {
+    "intro": "Scans your load order for landscape texture variants (statics/blending subfolders under */landscape/) and patches matching meshes to alpha-blend instead of alpha-test, generating a dedicated output plugin with the derived texture sets.",
+    "gameLocation": {
+      "label": "Game Location",
+      "dialogTitle": "Select Game Location"
+    },
+    "outputLocation": {
+      "label": "Output Location",
+      "dialogTitle": "Select Output Location"
+    },
+    "modManager": {
+      "label": "Mod Manager",
+      "none": "None / Vortex",
+      "mo2": "Mod Organizer 2"
+    },
+    "mo2InstancePath": {
+      "label": "MO2 Instance Path",
+      "dialogTitle": "Select MO2 Instance Folder"
+    },
+    "meshBlacklist": {
+      "label": "Mesh Blacklist",
+      "help": "Meshes matching a rule here are never patched. Wildcards (*) allowed, e.g. \"*\\glass\\*\". Right click to add/remove rows.",
+      "column": "Rule"
+    },
+    "editorIdKeywords": {
+      "label": "EditorID Blacklist Keywords",
+      "help": "Records whose EditorID contains one of these words (case-insensitive) are skipped entirely - useful where alpha testing is intentional (e.g. \"ice\", \"glass\"). Right click to add/remove rows.",
+      "column": "Keyword"
+    },
+    "language": {
+      "label": "Language"
+    },
+    "theme": {
+      "label": "Theme",
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "startButton": "Start Patching",
+    "missingGameLocation": {
+      "message": "Please select your game's install location.",
+      "title": "Missing Game Location"
+    },
+    "missingOutputLocation": {
+      "message": "Please select an output location.",
+      "title": "Missing Output Location"
+    },
+    "missingMo2Instance": {
+      "message": "Please select your Mod Organizer 2 instance folder.",
+      "title": "Missing MO2 Instance"
+    }
+  },
+  "progress": {
+    "starting": "Starting...",
+    "showDetails": "Show details",
+    "working": "Working...",
+    "done": "Done.",
+    "failed": "Failed - see details below.",
+    "doneClose": "Done - Close",
+    "failedClose": "Failed - Close",
+    "completion": {
+      "message": "Generation complete. Don't forget to enable AutoBlend's output plugin in your mod manager's plugin list if it isn't already active.",
+      "title": "AutoBlend"
+    }
+  }
+}

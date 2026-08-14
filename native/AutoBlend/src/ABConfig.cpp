@@ -44,6 +44,12 @@ auto ABConfig::load() -> ABParams
     }
 
     try {
+        if (configJ.contains("UiLanguage")) {
+            params.uiLanguage = configJ["UiLanguage"].get<string>();
+        }
+        if (configJ.contains("UiTheme")) {
+            params.uiTheme = configJ["UiTheme"].get<string>();
+        }
         if (configJ.contains("GameLocation")) {
             params.gameLocation = StringUtil::utf8toUTF16(configJ["GameLocation"].get<string>());
         }
@@ -98,6 +104,8 @@ auto ABConfig::toJson(const ABParams& params) -> nlohmann::json
 {
     nlohmann::json configJ;
 
+    configJ["UiLanguage"] = params.uiLanguage;
+    configJ["UiTheme"] = params.uiTheme;
     configJ["GameLocation"] = StringUtil::utf16toUTF8(params.gameLocation);
     configJ["GameType"] = static_cast<int>(params.gameType);
     configJ["OutputLocation"] = StringUtil::utf16toUTF8(params.outputLocation);

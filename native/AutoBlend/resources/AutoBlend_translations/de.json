@@ -1,0 +1,72 @@
+{
+  "_language": "Deutsch",
+  "common": {
+    "browse": "Durchsuchen",
+    "cancel": "Abbrechen"
+  },
+  "launcher": {
+    "intro": "Durchsucht deine Ladereihenfolge nach Landschaftstextur-Varianten (statics-/blending-Unterordner unter */landscape/) und patcht die passenden Meshes von Alpha-Test auf Alpha-Blend, wobei ein eigenes Ausgabe-Plugin mit den abgeleiteten Texture Sets erzeugt wird.",
+    "gameLocation": {
+      "label": "Spielort",
+      "dialogTitle": "Spielort auswählen"
+    },
+    "outputLocation": {
+      "label": "Ausgabeort",
+      "dialogTitle": "Ausgabeort auswählen"
+    },
+    "modManager": {
+      "label": "Mod-Manager",
+      "none": "Keiner / Vortex",
+      "mo2": "Mod Organizer 2"
+    },
+    "mo2InstancePath": {
+      "label": "MO2-Instanzpfad",
+      "dialogTitle": "MO2-Instanzordner auswählen"
+    },
+    "meshBlacklist": {
+      "label": "Mesh-Sperrliste",
+      "help": "Meshes, die hier auf eine Regel passen, werden nie gepatcht. Platzhalter (*) erlaubt, z. B. \"*\\glass\\*\". Rechtsklick zum Hinzufügen/Entfernen von Zeilen.",
+      "column": "Regel"
+    },
+    "editorIdKeywords": {
+      "label": "EditorID-Sperrlisten-Schlüsselwörter",
+      "help": "Datensätze, deren EditorID eines dieser Wörter enthält (Groß-/Kleinschreibung wird ignoriert), werden komplett übersprungen - nützlich, wenn Alpha-Test beabsichtigt ist (z. B. \"ice\", \"glass\"). Rechtsklick zum Hinzufügen/Entfernen von Zeilen.",
+      "column": "Schlüsselwort"
+    },
+    "language": {
+      "label": "Sprache"
+    },
+    "theme": {
+      "label": "Design",
+      "system": "System",
+      "light": "Hell",
+      "dark": "Dunkel"
+    },
+    "startButton": "Patchen starten",
+    "missingGameLocation": {
+      "message": "Bitte wähle den Installationsort deines Spiels aus.",
+      "title": "Spielort fehlt"
+    },
+    "missingOutputLocation": {
+      "message": "Bitte wähle einen Ausgabeort aus.",
+      "title": "Ausgabeort fehlt"
+    },
+    "missingMo2Instance": {
+      "message": "Bitte wähle deinen Mod-Organizer-2-Instanzordner aus.",
+      "title": "MO2-Instanz fehlt"
+    }
+  },
+  "progress": {
+    "starting": "Wird gestartet...",
+    "showDetails": "Details anzeigen",
+    "working": "Wird ausgeführt...",
+    "done": "Fertig.",
+    "failed": "Fehlgeschlagen - Details siehe unten.",
+    "doneClose": "Fertig - Schließen",
+    "failedClose": "Fehlgeschlagen - Schließen",
+    "completion": {
+      "message": "Generierung abgeschlossen. Vergiss nicht, das Ausgabe-Plugin von AutoBlend in der Plugin-Liste deines Mod-Managers zu aktivieren, falls es noch nicht aktiv ist.",
+      "title": "AutoBlend"
+    }
+  }
+}
