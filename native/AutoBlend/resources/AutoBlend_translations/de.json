@@ -6,6 +6,14 @@
   },
   "launcher": {
     "intro": "Durchsucht deine Ladereihenfolge nach Landschaftstextur-Varianten (statics-/blending-Unterordner unter */landscape/) und patcht die passenden Meshes von Alpha-Test auf Alpha-Blend, wobei ein eigenes Ausgabe-Plugin mit den abgeleiteten Texture Sets erzeugt wird.",
+    "configProfile": {
+      "label": "Konfigurationsprofil",
+      "load": "Konfiguration laden...",
+      "saveAs": "Konfiguration speichern unter...",
+      "loadDialogTitle": "Konfiguration laden",
+      "saveDialogTitle": "Konfiguration speichern unter",
+      "fileFilter": "JSON-Dateien (*.json)|*.json|Alle Dateien (*.*)|*.*"
+    },
     "gameLocation": {
       "label": "Spielort",
       "dialogTitle": "Spielort auswählen"

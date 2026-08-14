@@ -64,8 +64,16 @@ public:
     static auto load() -> ABParams;
     static void save(const ABParams& params);
 
+    /// @brief Loads params from an arbitrary JSON file, e.g. a user-picked profile via "Load
+    /// Config...". Lets one shared AutoBlend install (outside any one modlist) keep separate
+    /// settings per use case via saved JSON files, instead of relying on a dedicated per-modlist
+    /// copy of the exe for isolation - mirrors PGPatcher's/AutoSeasons' own load/save pattern.
+    static auto loadFrom(const std::filesystem::path& configFilePath) -> ABParams;
+    /// @brief Saves params to an arbitrary JSON file, e.g. via "Save Config As...".
+    static void saveTo(const std::filesystem::path& configFilePath, const ABParams& params);
+
     /// @brief Serializes params to the exact JSON shape AutoBlend.Core.Configuration.PatcherSettings
-    /// (de)serializes - used both by save() and to build the payload start_patch_run expects.
+    /// (de)serializes - used both by save()/saveTo() and to build the payload start_patch_run expects.
     static auto toJson(const ABParams& params) -> nlohmann::json;
 
 private:

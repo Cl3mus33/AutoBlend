@@ -6,6 +6,14 @@
   },
   "launcher": {
     "intro": "Analyse votre ordre de chargement à la recherche de variantes de textures de paysage (sous-dossiers statics/blending sous */landscape/) et patche les meshes correspondants pour passer de l'alpha-test à l'alpha-blend, en générant un plugin de sortie dédié avec les texture sets dérivés.",
+    "configProfile": {
+      "label": "Profil de configuration",
+      "load": "Charger la configuration...",
+      "saveAs": "Enregistrer la configuration sous...",
+      "loadDialogTitle": "Charger la configuration",
+      "saveDialogTitle": "Enregistrer la configuration sous",
+      "fileFilter": "Fichiers JSON (*.json)|*.json|Tous les fichiers (*.*)|*.*"
+    },
     "gameLocation": {
       "label": "Emplacement du jeu",
       "dialogTitle": "Sélectionner l'emplacement du jeu"

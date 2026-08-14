@@ -6,6 +6,14 @@
   },
   "launcher": {
     "intro": "Verifica sua ordem de carregamento em busca de variantes de textura de paisagem (subpastas statics/blending sob */landscape/) e corrige as meshes correspondentes de alpha-test para alpha-blend, gerando um plugin de saída dedicado com os texture sets derivados.",
+    "configProfile": {
+      "label": "Perfil de configuração",
+      "load": "Carregar configuração...",
+      "saveAs": "Salvar configuração como...",
+      "loadDialogTitle": "Carregar configuração",
+      "saveDialogTitle": "Salvar configuração como",
+      "fileFilter": "Arquivos JSON (*.json)|*.json|Todos os arquivos (*.*)|*.*"
+    },
     "gameLocation": {
       "label": "Local do jogo",
       "dialogTitle": "Selecionar local do jogo"

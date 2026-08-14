@@ -34,12 +34,16 @@ auto appDataDir() -> filesystem::path
 
 auto ABConfig::getConfigPath() -> filesystem::path { return appDataDir() / "AutoBlend" / "settings.json"; }
 
-auto ABConfig::load() -> ABParams
+auto ABConfig::load() -> ABParams { return loadFrom(getConfigPath()); }
+
+void ABConfig::save(const ABParams& params) { saveTo(getConfigPath(), params); }
+
+auto ABConfig::loadFrom(const filesystem::path& configFilePath) -> ABParams
 {
     ABParams params;
 
     nlohmann::json configJ;
-    if (!FileUtil::getJSON(getConfigPath(), configJ)) {
+    if (!FileUtil::getJSON(configFilePath, configJ)) {
         return params;
     }
 
@@ -136,15 +140,14 @@ auto ABConfig::toJson(const ABParams& params) -> nlohmann::json
     return configJ;
 }
 
-void ABConfig::save(const ABParams& params)
+void ABConfig::saveTo(const filesystem::path& configFilePath, const ABParams& params)
 {
     try {
         const auto configJ = toJson(params);
-        const auto configPath = getConfigPath();
         error_code ec;
-        filesystem::create_directories(configPath.parent_path(), ec);
+        filesystem::create_directories(configFilePath.parent_path(), ec);
 
-        ofstream file(configPath);
+        ofstream file(configFilePath);
         if (!file.is_open()) {
             Logger::warn("Failed to save settings file");
             return;
@@ -152,8 +155,9 @@ void ABConfig::save(const ABParams& params)
 
         file << configJ.dump(2);
     } catch (const exception& e) {
-        // Mirrors load()'s own try/catch - a failure here (e.g. dump() rejecting invalid UTF-8)
-        // should cost the user their settings for this run, not crash the app on "Start Patching".
+        // Mirrors loadFrom()'s own try/catch - a failure here (e.g. dump() rejecting invalid
+        // UTF-8) should cost the user their settings for this run, not crash the app on "Start
+        // Patching".
         Logger::warn("Failed to save settings file: {}", e.what());
     }
 }

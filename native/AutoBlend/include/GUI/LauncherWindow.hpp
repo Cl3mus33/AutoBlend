@@ -56,7 +56,10 @@ private:
     void onBrowseOutputLocation(wxCommandEvent& event);
     void onBrowseMo2Instance(wxCommandEvent& event);
     void onModManagerChanged(wxCommandEvent& event);
+    void onLoadConfig(wxCommandEvent& event);
+    void onSaveConfigAs(wxCommandEvent& event);
     void onOkButtonPressed(wxCommandEvent& event);
     void updateListColumnWidths();
     void updateMo2FieldState();
+    void applyLoadedParams(const ABParams& params);
 };

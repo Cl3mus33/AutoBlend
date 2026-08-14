@@ -29,7 +29,7 @@ auto makeSectionLabel(wxWindow* parent, const wxString& text) -> wxStaticText*
 }
 
 LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exePath)
-    : wxDialog(nullptr, wxID_ANY, "AutoBlend", wxDefaultPosition, wxSize(600, 800), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+    : wxDialog(nullptr, wxID_ANY, "AutoBlend", wxDefaultPosition, wxSize(600, 870), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
     , m_exePath(std::move(exePath))
     , m_textureSetNamingTemplate(initParams.textureSetNamingTemplate)
 {
@@ -65,6 +65,23 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
             "generating a dedicated output plugin with the derived texture sets."));
     introText->Wrap(530);
     bodySizer->Add(introText, 0, wxALL, BORDER_SIZE * 2);
+
+    // Config profile - a single install (e.g. shared outside any one modlist) can still keep
+    // distinct settings per use case by saving/loading separate JSON files here, instead of
+    // relying on %APPDATA%\AutoBlend\settings.json (which only isolates settings when each modlist
+    // gets its own copy of the exe). Mirrors PGPatcher's/AutoSeasons' own Load/Save Config pattern.
+    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.configProfile.label", "Config Profile")), 0,
+        wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
+
+    auto* loadConfigButton = new wxButton(body, wxID_ANY, ABTr("launcher.configProfile.load", "Load Config..."));
+    loadConfigButton->Bind(wxEVT_BUTTON, &LauncherWindow::onLoadConfig, this);
+    auto* saveConfigButton = new wxButton(body, wxID_ANY, ABTr("launcher.configProfile.saveAs", "Save Config As..."));
+    saveConfigButton->Bind(wxEVT_BUTTON, &LauncherWindow::onSaveConfigAs, this);
+
+    auto* configProfileSizer = new wxBoxSizer(wxHORIZONTAL);
+    configProfileSizer->Add(loadConfigButton, 0, wxALL, BORDER_SIZE);
+    configProfileSizer->Add(saveConfigButton, 0, wxALL, BORDER_SIZE);
+    bodySizer->Add(configProfileSizer, 0);
 
     // Language selector - changing it immediately relaunches the window (see onLanguageChanged)
     // rather than requiring a separate settings dialog/OK click, since this launcher is small
@@ -351,6 +368,62 @@ void LauncherWindow::updateMo2FieldState()
     m_mo2InstancePathLabel->Enable(isMo2);
     m_mo2InstancePathTextbox->Enable(isMo2);
     m_mo2InstanceBrowseButton->Enable(isMo2);
+}
+
+void LauncherWindow::onLoadConfig([[maybe_unused]] wxCommandEvent& event)
+{
+    wxFileDialog dialog(this, ABTr("launcher.configProfile.loadDialogTitle", "Load Config"), wxEmptyString, wxEmptyString,
+        ABTr("launcher.configProfile.fileFilter", "JSON files (*.json)|*.json|All files (*.*)|*.*"),
+        wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+    if (dialog.ShowModal() != wxID_OK) {
+        return;
+    }
+
+    applyLoadedParams(ABConfig::loadFrom(filesystem::path(dialog.GetPath().ToStdWstring())));
+}
+
+void LauncherWindow::onSaveConfigAs([[maybe_unused]] wxCommandEvent& event)
+{
+    wxFileDialog dialog(this, ABTr("launcher.configProfile.saveDialogTitle", "Save Config As"), wxEmptyString,
+        "AutoBlend_config.json", ABTr("launcher.configProfile.fileFilter", "JSON files (*.json)|*.json|All files (*.*)|*.*"),
+        wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+    if (dialog.ShowModal() != wxID_OK) {
+        return;
+    }
+
+    ABParams current;
+    getParams(current);
+    ABConfig::saveTo(filesystem::path(dialog.GetPath().ToStdWstring()), current);
+}
+
+void LauncherWindow::applyLoadedParams(const ABParams& params)
+{
+    // uiLanguage/uiTheme are deliberately left untouched - those are this user's own app-wide
+    // preference for how the tool looks, not part of a per-job profile (which game/output/mod
+    // manager to target), so loading a profile shouldn't change how the window you're looking at
+    // right now is themed or translated.
+    m_gameLocationTextbox->SetValue(params.gameLocation);
+    m_outputLocationTextbox->SetValue(params.outputLocation);
+    m_modManagerChoice->SetSelection(params.modManager == ABModManagerType::MOD_ORGANIZER_2 ? 1 : 0);
+    m_mo2InstancePathTextbox->SetValue(params.mo2InstancePath);
+    updateMo2FieldState();
+    m_textureSetNamingTemplate = params.textureSetNamingTemplate;
+
+    m_meshBlacklistCtrl->DeleteAllItems();
+    long meshBlacklistIndex = 0;
+    for (const auto& rule : params.meshBlacklist) {
+        m_meshBlacklistCtrl->InsertItem(meshBlacklistIndex++, wxString(rule));
+    }
+    m_meshBlacklistCtrl->InsertItem(m_meshBlacklistCtrl->GetItemCount(), "");
+
+    m_editorIdKeywordsCtrl->DeleteAllItems();
+    long editorIdKeywordIndex = 0;
+    for (const auto& keyword : params.editorIdBlacklistKeywords) {
+        m_editorIdKeywordsCtrl->InsertItem(editorIdKeywordIndex++, wxString(keyword));
+    }
+    m_editorIdKeywordsCtrl->InsertItem(m_editorIdKeywordsCtrl->GetItemCount(), "");
+
+    updateListColumnWidths();
 }
 
 void LauncherWindow::updateListColumnWidths()

@@ -44,3 +44,6 @@ First release.
   AutoSeasons' own `ASLocale`/theme-switching pattern — changing the language rebuilds the launcher
   in place, changing the theme restarts the process (wx's dark-mode support can't reliably toggle
   back within one running process).
+- "Load Config..." / "Save Config As..." buttons, mirroring PGPatcher's/AutoSeasons' own pattern:
+  one shared AutoBlend install (outside any one modlist) can keep separate settings per use case as
+  saved JSON files, instead of needing a dedicated copy of the exe per modlist for isolation.
