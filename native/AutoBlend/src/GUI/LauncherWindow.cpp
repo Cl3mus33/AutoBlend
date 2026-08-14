@@ -29,7 +29,7 @@ auto makeSectionLabel(wxWindow* parent, const wxString& text) -> wxStaticText*
 }
 
 LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exePath)
-    : wxDialog(nullptr, wxID_ANY, "AutoBlend", wxDefaultPosition, wxSize(600, 760), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+    : wxDialog(nullptr, wxID_ANY, "AutoBlend", wxDefaultPosition, wxSize(600, 700), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
     , m_exePath(std::move(exePath))
     , m_textureSetNamingTemplate(initParams.textureSetNamingTemplate)
 {
@@ -78,17 +78,6 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     gameLocationSizer->Add(m_gameLocationTextbox, 1, wxEXPAND | wxALL, BORDER_SIZE);
     gameLocationSizer->Add(gameBrowseButton, 0, wxALL, BORDER_SIZE);
     bodySizer->Add(gameLocationSizer, 0, wxEXPAND);
-
-    // Game type
-    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.gameType.label", "Game Type")), 0,
-        wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
-
-    wxArrayString gameTypeChoices;
-    gameTypeChoices.Add("Skyrim Special Edition");
-    gameTypeChoices.Add("Skyrim Legendary Edition");
-    m_gameTypeChoice = new wxChoice(body, wxID_ANY, wxDefaultPosition, wxDefaultSize, gameTypeChoices);
-    m_gameTypeChoice->SetSelection(initParams.gameType == ABGameType::SKYRIM_LE ? 1 : 0);
-    bodySizer->Add(m_gameTypeChoice, 0, wxEXPAND | wxALL, BORDER_SIZE);
 
     // Output location
     bodySizer->Add(makeSectionLabel(body, ABTr("launcher.outputLocation.label", "Output Location")), 0,
@@ -216,7 +205,9 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
 void LauncherWindow::getParams(ABParams& outParams) const
 {
     outParams.gameLocation = m_gameLocationTextbox->GetValue().ToStdWstring();
-    outParams.gameType = m_gameTypeChoice->GetSelection() == 1 ? ABGameType::SKYRIM_LE : ABGameType::SKYRIM_SE;
+    // Skyrim LE is not offered in the UI - the backend (AutoBlend.Core, via Mutagen) still
+    // supports it, but nothing in this shell currently exposes a way to pick it.
+    outParams.gameType = ABGameType::SKYRIM_SE;
     outParams.outputLocation = m_outputLocationTextbox->GetValue().ToStdWstring();
     outParams.modManager
         = m_modManagerChoice->GetSelection() == 1 ? ABModManagerType::MOD_ORGANIZER_2 : ABModManagerType::NONE;

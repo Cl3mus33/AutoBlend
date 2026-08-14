@@ -27,7 +27,6 @@ private:
     std::filesystem::path m_exePath;
 
     wxTextCtrl* m_gameLocationTextbox;
-    wxChoice* m_gameTypeChoice;
     wxTextCtrl* m_outputLocationTextbox;
     wxChoice* m_modManagerChoice;
     wxStaticText* m_mo2InstancePathLabel;
