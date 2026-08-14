@@ -39,6 +39,8 @@ public sealed class PatcherSettings
     {
         @"*\glass\*",
         @"*\ice\*",
+        @"*\trees\*",
+        @"*\actors\*",
     };
 
     /// <summary>
