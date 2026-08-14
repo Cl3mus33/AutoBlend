@@ -47,7 +47,7 @@ mid-modlist keeps your settings.
    folder.
 3. Run it, then enable the generated output plugin in your mod manager.
 
-Supports Skyrim SE and Skyrim LE.
+Supports Skyrim Special Edition.
 
 ## Building from source
 
