@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-14
+
 ### Fixed
 - `Mo2LoadOrderMaterializer` never included the game's own implicit base masters (`Skyrim.esm`,
   `Update.esm`, `Dawnguard.esm`, `HearthFires.esm`, `Dragonborn.esm`) since MO2's `plugins.txt`
@@ -46,3 +48,10 @@ All notable changes to this project are documented here. Format loosely follows
   Texture output plugin generation — all in `AutoBlend.Core` (C#), unchanged by this native port.
 - Mod Organizer 2 and Vortex/manual-install support, including launching directly from MO2's
   executable list.
+- `autoblend.ini` (content "Empty", same convention as AutoSeasons' `AS.ini`) shipped next to the
+  exe on every build, so dropping the build output into a `mods/` folder is enough for MO2 to
+  recognize it as a mod.
+
+### Changed
+- Default mesh blacklist now also covers `*\trees\*` and `*\actors\*`, alongside the original
+  `*\glass\*` and `*\ice\*`.
