@@ -48,6 +48,7 @@ private:
     std::wstring m_textureSetNamingTemplate;
     PGModifiableListCtrl* m_meshBlacklistCtrl;
     PGModifiableListCtrl* m_editorIdKeywordsCtrl;
+    PGModifiableListCtrl* m_autoGenerateAllowlistCtrl;
     wxButton* m_okButton;
 
     void onLanguageChanged(wxCommandEvent& event);

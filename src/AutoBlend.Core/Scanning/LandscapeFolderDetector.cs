@@ -26,19 +26,31 @@ public sealed class LandscapeFolderDetector
     private readonly IReadOnlyList<LandscapeFolderRule> _rules;
     private readonly IGameFileProbe _fileProbe;
     private readonly MissingTextureGenerator? _textureGenerator;
+    private readonly IReadOnlyList<string> _autoGenerateAllowlist;
 
     /// <param name="textureGenerator">
-    /// When set, a texture with no existing statics/blending sibling gets one synthesized on the
-    /// fly (see <see cref="MissingTextureGenerator"/>) instead of being left undetected - so mod
-    /// authors no longer need to hand-author these siblings themselves. Null disables this (e.g.
-    /// texconv isn't available, or the user turned the setting off) and falls back to the previous
-    /// "not found" behavior.
+    /// When set, a texture with no existing statics sibling - AND matching
+    /// <paramref name="autoGenerateAllowlist"/> - gets one synthesized on the fly (see
+    /// <see cref="MissingTextureGenerator"/>) instead of being left undetected - so mod authors no
+    /// longer need to hand-author these siblings themselves. Null disables this (e.g. the user
+    /// turned the setting off) and falls back to the previous "not found" behavior.
     /// </param>
-    public LandscapeFolderDetector(IReadOnlyList<LandscapeFolderRule> rules, IGameFileProbe fileProbe, MissingTextureGenerator? textureGenerator = null)
+    /// <param name="autoGenerateAllowlist">
+    /// Wildcard patterns gating which source diffuse paths <paramref name="textureGenerator"/> is
+    /// allowed to run for - every landscape texture with an alpha-blended shape is structurally
+    /// "eligible", but not every one is something a statics variant actually makes sense for, so
+    /// generation is opt-in per texture rather than blanket-covering anything eligible.
+    /// </param>
+    public LandscapeFolderDetector(
+        IReadOnlyList<LandscapeFolderRule> rules,
+        IGameFileProbe fileProbe,
+        MissingTextureGenerator? textureGenerator = null,
+        IReadOnlyList<string>? autoGenerateAllowlist = null)
     {
         _rules = rules;
         _fileProbe = fileProbe;
         _textureGenerator = textureGenerator;
+        _autoGenerateAllowlist = autoGenerateAllowlist ?? Array.Empty<string>();
     }
 
     /// <summary>
@@ -100,8 +112,13 @@ public sealed class LandscapeFolderDetector
             // actually winning in the load order, so a mod author never has to hand-author it (see
             // MissingTextureGenerator's own doc comment for why this is safe: verified to reproduce
             // Vanaheimr's own hand-authored statics textures almost pixel-for-pixel). Only for
-            // "statics" - see GeneratableFolderName above.
-            var canGenerate = rule.FolderName.Equals(GeneratableFolderName, StringComparison.OrdinalIgnoreCase);
+            // "statics" (see GeneratableFolderName above) and only for textures explicitly listed in
+            // AutoGenerateAllowlist - every landscape texture with an alpha-blended shape is
+            // structurally "eligible" here, but generating for all of them indiscriminately produced
+            // far more textures than intended (including ones with no real source, or ones a statics
+            // variant doesn't actually make sense for), so this is opt-in per texture, not blanket.
+            var canGenerate = rule.FolderName.Equals(GeneratableFolderName, StringComparison.OrdinalIgnoreCase)
+                && WildcardMatcher.MatchesAny(vanillaDiffusePath, _autoGenerateAllowlist);
             if (canGenerate && _textureGenerator is not null && _textureGenerator.TryGenerate(vanillaDiffusePath, candidatePath, out _))
             {
                 return new LandscapeFolderDetection(rule, candidatePath);

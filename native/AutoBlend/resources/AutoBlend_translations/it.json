@@ -41,6 +41,11 @@
       "help": "I record il cui EditorID contiene una di queste parole (senza distinzione tra maiuscole/minuscole) vengono saltati del tutto - utile quando l'alpha-test è intenzionale (es. \"ice\", \"glass\"). Clic destro per aggiungere/rimuovere righe.",
       "column": "Parola chiave"
     },
+    "autoGenerateAllowlist": {
+      "label": "Lista consentiti per la generazione automatica",
+      "help": "Solo queste texture diffuse sorgente (relative a Data, es. \"textures\\landscape\\dirt01.dds\") ricevono una variante statics mancante generata automaticamente. Caratteri jolly (*) consentiti. Clic destro per aggiungere/rimuovere righe.",
+      "column": "Texture"
+    },
     "language": {
       "label": "Lingua"
     },

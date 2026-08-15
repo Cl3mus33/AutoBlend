@@ -41,6 +41,11 @@
       "help": "Registros cujo EditorID contenha uma dessas palavras (sem diferenciar maiúsculas/minúsculas) são ignorados por completo - útil quando o alpha-test é intencional (ex. \"ice\", \"glass\"). Clique com o botão direito para adicionar/remover linhas.",
       "column": "Palavra-chave"
     },
+    "autoGenerateAllowlist": {
+      "label": "Lista de permissões de geração automática",
+      "help": "Somente estas texturas difusas de origem (relativas a Data, ex. \"textures\\landscape\\dirt01.dds\") recebem uma variante statics ausente gerada automaticamente. Curingas (*) permitidos. Clique com o botão direito para adicionar/remover linhas.",
+      "column": "Textura"
+    },
     "language": {
       "label": "Idioma"
     },

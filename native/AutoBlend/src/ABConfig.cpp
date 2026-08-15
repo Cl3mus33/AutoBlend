@@ -99,6 +99,12 @@ auto ABConfig::loadFrom(const filesystem::path& configFilePath) -> ABParams
         if (configJ.contains("AutoGenerateMissingStatics")) {
             params.autoGenerateMissingStatics = configJ["AutoGenerateMissingStatics"].get<bool>();
         }
+        if (configJ.contains("AutoGenerateAllowlist")) {
+            params.autoGenerateAllowlist.clear();
+            for (const auto& item : configJ["AutoGenerateAllowlist"]) {
+                params.autoGenerateAllowlist.push_back(StringUtil::utf8toUTF16(item.get<string>()));
+            }
+        }
     } catch (const exception& e) {
         Logger::warn("Failed to parse settings file, using defaults: {}", e.what());
         return ABParams {};
@@ -140,6 +146,11 @@ auto ABConfig::toJson(const ABParams& params) -> nlohmann::json
 
     configJ["TextureSetNamingTemplate"] = StringUtil::utf16toUTF8(params.textureSetNamingTemplate);
     configJ["AutoGenerateMissingStatics"] = params.autoGenerateMissingStatics;
+
+    configJ["AutoGenerateAllowlist"] = nlohmann::json::array();
+    for (const auto& item : params.autoGenerateAllowlist) {
+        configJ["AutoGenerateAllowlist"].push_back(StringUtil::utf16toUTF8(item));
+    }
 
     return configJ;
 }

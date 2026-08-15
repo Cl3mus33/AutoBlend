@@ -41,6 +41,11 @@
       "help": "Records whose EditorID contains one of these words (case-insensitive) are skipped entirely - useful where alpha testing is intentional (e.g. \"ice\", \"glass\"). Right click to add/remove rows.",
       "column": "Keyword"
     },
+    "autoGenerateAllowlist": {
+      "label": "Auto-Generate Allowlist",
+      "help": "Only these source diffuse textures (relative to Data, e.g. \"textures\\landscape\\dirt01.dds\") get a missing statics sibling synthesized automatically. Wildcards (*) allowed. Right click to add/remove rows.",
+      "column": "Texture"
+    },
     "language": {
       "label": "Language"
     },

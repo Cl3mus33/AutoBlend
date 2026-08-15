@@ -41,6 +41,11 @@
       "help": "Les enregistrements dont l'EditorID contient l'un de ces mots (insensible à la casse) sont entièrement ignorés - utile lorsque l'alpha-test est intentionnel (ex. \"ice\", \"glass\"). Clic droit pour ajouter/supprimer des lignes.",
       "column": "Mot-clé"
     },
+    "autoGenerateAllowlist": {
+      "label": "Liste blanche de génération automatique",
+      "help": "Seules ces textures diffuses sources (relatives à Data, ex. \"textures\\landscape\\dirt01.dds\") reçoivent une texture statics manquante générée automatiquement. Jokers (*) autorisés. Clic droit pour ajouter/supprimer des lignes.",
+      "column": "Texture"
+    },
     "language": {
       "label": "Langue"
     },

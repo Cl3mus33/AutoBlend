@@ -29,7 +29,7 @@ auto makeSectionLabel(wxWindow* parent, const wxString& text) -> wxStaticText*
 }
 
 LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exePath)
-    : wxDialog(nullptr, wxID_ANY, "AutoBlend", wxDefaultPosition, wxSize(600, 870), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+    : wxDialog(nullptr, wxID_ANY, "AutoBlend", wxDefaultPosition, wxSize(600, 1030), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
     , m_exePath(std::move(exePath))
     , m_textureSetNamingTemplate(initParams.textureSetNamingTemplate)
 {
@@ -227,6 +227,36 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
 
     bodySizer->Add(m_editorIdKeywordsCtrl, 1, wxEXPAND | wxALL, BORDER_SIZE);
 
+    // Auto-generate allowlist - which source diffuse textures are allowed to get a synthesized
+    // statics sibling (see AutoBlend.Core.Scanning.MissingTextureGenerator). Every landscape texture
+    // with an alpha-blended shape is structurally eligible, but generation only actually runs for
+    // entries listed here, so this is an opt-in table rather than an exclusion list like the two
+    // above it.
+    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.autoGenerateAllowlist.label", "Auto-Generate Allowlist")), 0,
+        wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
+
+    auto* autoGenerateAllowlistHelpText = new wxStaticText(body, wxID_ANY,
+        ABTr("launcher.autoGenerateAllowlist.help",
+            "Only these source diffuse textures (relative to Data, e.g. \"textures\\landscape\\dirt01.dds\") "
+            "get a missing statics sibling synthesized automatically. Wildcards (*) allowed. Right click to "
+            "add/remove rows."));
+    autoGenerateAllowlistHelpText->Wrap(560);
+    bodySizer->Add(autoGenerateAllowlistHelpText, 0, wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
+
+    m_autoGenerateAllowlistCtrl = new PGModifiableListCtrl(
+        body, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_EDIT_LABELS | wxLC_NO_HEADER);
+    m_autoGenerateAllowlistCtrl->AppendColumn(
+        ABTr("launcher.autoGenerateAllowlist.column", "Texture"), wxLIST_FORMAT_LEFT, wxLIST_AUTOSIZE_USEHEADER);
+    m_autoGenerateAllowlistCtrl->SetColumnWidth(0, wxLIST_AUTOSIZE_USEHEADER);
+
+    long autoGenerateAllowlistIndex = 0;
+    for (const auto& entry : initParams.autoGenerateAllowlist) {
+        m_autoGenerateAllowlistCtrl->InsertItem(autoGenerateAllowlistIndex++, wxString(entry));
+    }
+    m_autoGenerateAllowlistCtrl->InsertItem(m_autoGenerateAllowlistCtrl->GetItemCount(), "");
+
+    bodySizer->Add(m_autoGenerateAllowlistCtrl, 1, wxEXPAND | wxALL, BORDER_SIZE);
+
     body->SetSizer(bodySizer);
     mainSizer->Add(body, 1, wxEXPAND | wxALL, BORDER_SIZE);
 
@@ -239,6 +269,10 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
         event.Skip();
     });
     m_editorIdKeywordsCtrl->Bind(pgEVT_LISTCTRL_CHANGED, [this](PGCustomListctrlChangedEvent& event) -> void {
+        updateListColumnWidths();
+        event.Skip();
+    });
+    m_autoGenerateAllowlistCtrl->Bind(pgEVT_LISTCTRL_CHANGED, [this](PGCustomListctrlChangedEvent& event) -> void {
         updateListColumnWidths();
         event.Skip();
     });
@@ -305,6 +339,15 @@ void LauncherWindow::getParams(ABParams& outParams) const
         const wxString text = m_editorIdKeywordsCtrl->GetItemText(item);
         if (!text.IsEmpty()) {
             outParams.editorIdBlacklistKeywords.push_back(text.ToStdWstring());
+        }
+    }
+
+    outParams.autoGenerateAllowlist.clear();
+    item = -1;
+    while ((item = m_autoGenerateAllowlistCtrl->GetNextItem(item)) != -1) {
+        const wxString text = m_autoGenerateAllowlistCtrl->GetItemText(item);
+        if (!text.IsEmpty()) {
+            outParams.autoGenerateAllowlist.push_back(text.ToStdWstring());
         }
     }
 }
@@ -423,6 +466,13 @@ void LauncherWindow::applyLoadedParams(const ABParams& params)
     }
     m_editorIdKeywordsCtrl->InsertItem(m_editorIdKeywordsCtrl->GetItemCount(), "");
 
+    m_autoGenerateAllowlistCtrl->DeleteAllItems();
+    long autoGenerateAllowlistIndex = 0;
+    for (const auto& entry : params.autoGenerateAllowlist) {
+        m_autoGenerateAllowlistCtrl->InsertItem(autoGenerateAllowlistIndex++, wxString(entry));
+    }
+    m_autoGenerateAllowlistCtrl->InsertItem(m_autoGenerateAllowlistCtrl->GetItemCount(), "");
+
     updateListColumnWidths();
 }
 
@@ -433,6 +483,9 @@ void LauncherWindow::updateListColumnWidths()
     }
     if (m_editorIdKeywordsCtrl != nullptr && m_editorIdKeywordsCtrl->GetColumnCount() > 0) {
         m_editorIdKeywordsCtrl->SetColumnWidth(0, m_editorIdKeywordsCtrl->GetClientSize().GetWidth());
+    }
+    if (m_autoGenerateAllowlistCtrl != nullptr && m_autoGenerateAllowlistCtrl->GetColumnCount() > 0) {
+        m_autoGenerateAllowlistCtrl->SetColumnWidth(0, m_autoGenerateAllowlistCtrl->GetClientSize().GetWidth());
     }
 }
 

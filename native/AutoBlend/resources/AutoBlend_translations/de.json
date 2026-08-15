@@ -41,6 +41,11 @@
       "help": "Datensätze, deren EditorID eines dieser Wörter enthält (Groß-/Kleinschreibung wird ignoriert), werden komplett übersprungen - nützlich, wenn Alpha-Test beabsichtigt ist (z. B. \"ice\", \"glass\"). Rechtsklick zum Hinzufügen/Entfernen von Zeilen.",
       "column": "Schlüsselwort"
     },
+    "autoGenerateAllowlist": {
+      "label": "Positivliste für automatische Generierung",
+      "help": "Nur für diese Quell-Diffuse-Texturen (relativ zu Data, z. B. \"textures\\landscape\\dirt01.dds\") wird automatisch eine fehlende Statics-Variante erzeugt. Platzhalter (*) erlaubt. Rechtsklick zum Hinzufügen/Entfernen von Zeilen.",
+      "column": "Textur"
+    },
     "language": {
       "label": "Sprache"
     },

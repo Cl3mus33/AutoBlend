@@ -41,6 +41,11 @@
       "help": "Los registros cuyo EditorID contenga una de estas palabras (sin distinguir mayúsculas) se omiten por completo - útil cuando el alpha-test es intencional (p. ej. \"ice\", \"glass\"). Clic derecho para añadir/quitar filas.",
       "column": "Palabra clave"
     },
+    "autoGenerateAllowlist": {
+      "label": "Lista de permitidos para generación automática",
+      "help": "Solo estas texturas difusas de origen (relativas a Data, p. ej. \"textures\\landscape\\dirt01.dds\") reciben una textura statics faltante generada automáticamente. Comodines (*) permitidos. Clic derecho para añadir/quitar filas.",
+      "column": "Textura"
+    },
     "language": {
       "label": "Idioma"
     },

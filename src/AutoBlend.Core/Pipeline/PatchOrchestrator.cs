@@ -68,8 +68,8 @@ public sealed class PatchOrchestrator
         // "...\Skyrim Special Edition" — Mutagen and our file probes both want the Data folder.
         var dataFolder = Path.Combine(_settings.GameLocation, "Data");
 
-        var mo2Reader = _settings.ModManager == ModManagerType.ModOrganizer2
-            ? new Mo2InstanceReader(_settings.Mo2InstancePath, _settings.Mo2ProfileName)
+        using var mo2Reader = _settings.ModManager == ModManagerType.ModOrganizer2
+            ? new Mo2InstanceReader(_settings.Mo2InstancePath, _settings.Mo2ProfileName, gameRelease)
             : null;
 
         // Mutagen loads every plugin from one physical Data folder — it has no notion of MO2's
@@ -118,8 +118,24 @@ public sealed class PatchOrchestrator
             textureGenerator = new MissingTextureGenerator(fileProbe, _settings.OutputLocation);
         }
 
-        var folderDetector = new LandscapeFolderDetector(_settings.LandscapeFolderRules, fileProbe, textureGenerator);
+        var folderDetector = new LandscapeFolderDetector(_settings.LandscapeFolderRules, fileProbe, textureGenerator, _settings.AutoGenerateAllowlist);
         var blacklist = new BlacklistEvaluator(_settings);
+
+        // Runs before any mesh/record scanning, as its own explicit phase: the allowlist is a
+        // small, fixed, known-upfront list (unlike everything else here, which is only discovered
+        // by scanning), so there's no reason to wait for a mesh to lazily reference one of these
+        // textures before generating it. Detect() itself does the actual exists-check/generate -
+        // MissingTextureGenerator's own per-target-path cache means the per-mesh scan below hitting
+        // the exact same textures later is then just a fast cache lookup, not a second attempt.
+        if (textureGenerator is not null)
+        {
+            var allowlist = _settings.AutoGenerateAllowlist;
+            for (var i = 0; i < allowlist.Count; i++)
+            {
+                Report($"Generating missing statics textures... ({i + 1}/{allowlist.Count})", i + 1, allowlist.Count);
+                folderDetector.Detect(allowlist[i]);
+            }
+        }
 
         var patchMod = new SkyrimMod(new ModKey(PatchModName, ModType.Plugin), skyrimRelease);
         var txstFactory = new DerivedTextureSetFactory(patchMod, _settings.TextureSetNamingTemplate);
