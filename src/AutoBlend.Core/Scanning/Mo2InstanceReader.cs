@@ -1,13 +1,20 @@
+using Mutagen.Bethesda;
+using Mutagen.Bethesda.Archives;
+
 namespace AutoBlend.Core.Scanning;
 
 /// <summary>
 /// Parses a Mod Organizer 2 profile's modlist.txt and resolves a relative Data-folder path
-/// against its virtual file system: the "overwrite" folder first, then each enabled mod folder
-/// in priority order. MO2 writes modlist.txt top-to-bottom matching its mod list panel, where the
-/// bottom of that panel wins file conflicts — so the last enabled line in the file is checked
-/// first here.
+/// against its virtual file system: the "overwrite" folder first, then each enabled mod folder's
+/// own loose files in priority order, then (only if no loose file anywhere provides it) each
+/// enabled mod's own BSA/BA2 archives, also in priority order. MO2 writes modlist.txt top-to-bottom
+/// matching its mod list panel, where the bottom of that panel wins file conflicts — so the last
+/// enabled line in the file is checked first here. Loose always beats archived, matching Skyrim's
+/// own engine behavior - a mod that packs assets into its own BSA rather than shipping them loose
+/// (e.g. Beyond Skyrim's BSAssets.bsa/BSHeartland.bsa) was previously invisible to this reader
+/// entirely, since only loose files were ever checked.
 /// </summary>
-public sealed class Mo2InstanceReader
+public sealed class Mo2InstanceReader : IDisposable
 {
     /// <summary>The path the user gave us — MO2's own notion of "the instance" (where
     /// ModOrganizer.ini lives). For a "global" instance this is under %LOCALAPPDATA%\ModOrganizer\
@@ -23,9 +30,14 @@ public sealed class Mo2InstanceReader
     public string? OverwriteFolder { get; }
     public IReadOnlyList<string> EnabledModFoldersHighToLowPriority { get; }
 
-    public Mo2InstanceReader(string instancePath, string profileName)
+    private readonly GameRelease _gameRelease;
+    private IReadOnlyList<IArchiveReader>? _modArchiveReaders;
+    private readonly Dictionary<IArchiveReader, Dictionary<string, IArchiveFile>> _archiveIndexes = new();
+
+    public Mo2InstanceReader(string instancePath, string profileName, GameRelease gameRelease)
     {
         InstancePath = instancePath;
+        _gameRelease = gameRelease;
         DataRoot = ResolveDataRoot(instancePath);
         ModsRoot = Path.Combine(DataRoot, "mods");
 
@@ -77,6 +89,11 @@ public sealed class Mo2InstanceReader
         return result;
     }
 
+    /// <summary>Loose-file resolution only (overwrite, then each enabled mod folder in priority
+    /// order) - does NOT consult any mod's own BSA/BA2 archives. Used for plugins (.esp/.esm/.esl),
+    /// which are never packed into archives, so archive-awareness would only add cost there. For
+    /// meshes/textures/anything that CAN legitimately live in a mod's own archive, use
+    /// <see cref="TryResolveLooseOrArchived"/> instead.</summary>
     public bool TryResolve(string relativeDataPath, out string fullPath)
     {
         if (OverwriteFolder is not null)
@@ -101,6 +118,126 @@ public sealed class Mo2InstanceReader
 
         fullPath = string.Empty;
         return false;
+    }
+
+    /// <summary>Same loose-file resolution as <see cref="TryResolve"/>, then - only if no mod
+    /// provides a loose override - checks every enabled mod's own BSA/BA2 archives, also in
+    /// priority order (matching Skyrim's own engine rule: loose always beats archived, regardless
+    /// of which mod either comes from). A mod that ships assets packed into its own archive rather
+    /// than loose (e.g. Beyond Skyrim's BSAssets.bsa) resolves through this path.</summary>
+    public bool TryResolveLooseOrArchived(string relativeDataPath, out Stream stream)
+    {
+        if (TryResolve(relativeDataPath, out var loosePath))
+        {
+            stream = File.OpenRead(loosePath);
+            return true;
+        }
+
+        foreach (var reader in GetOrBuildModArchiveReaders())
+        {
+            var index = GetOrBuildArchiveIndex(reader);
+            if (index.TryGetValue(relativeDataPath, out var archiveFile))
+            {
+                stream = archiveFile.AsStream();
+                return true;
+            }
+        }
+
+        stream = Stream.Null;
+        return false;
+    }
+
+    public bool ExistsLooseOrArchived(string relativeDataPath)
+    {
+        if (TryResolve(relativeDataPath, out _))
+        {
+            return true;
+        }
+
+        foreach (var reader in GetOrBuildModArchiveReaders())
+        {
+            if (GetOrBuildArchiveIndex(reader).ContainsKey(relativeDataPath))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Lazy and built once: a modlist can carry hundreds of mods, most without their own archives,
+    // and each IArchiveReader.Files enumeration is a real cost - only pay it for instances that
+    // actually construct this reader, and only once regardless of how many paths get queried.
+    private IReadOnlyList<IArchiveReader> GetOrBuildModArchiveReaders()
+    {
+        if (_modArchiveReaders is not null)
+        {
+            return _modArchiveReaders;
+        }
+
+        var readers = new List<IArchiveReader>();
+        foreach (var modFolder in EnabledModFoldersHighToLowPriority)
+        {
+            IEnumerable<string> archivePaths;
+            try
+            {
+                archivePaths = Directory.EnumerateFiles(modFolder, "*.bsa")
+                    .Concat(Directory.EnumerateFiles(modFolder, "*.ba2"));
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+
+            foreach (var archivePath in archivePaths)
+            {
+                try
+                {
+                    readers.Add(Archive.CreateReader(_gameRelease, archivePath));
+                }
+                catch
+                {
+                    // Skip archives Mutagen can't parse (corrupt/unsupported format) rather than
+                    // failing the whole run over one bad file.
+                }
+            }
+        }
+
+        _modArchiveReaders = readers;
+        return readers;
+    }
+
+    private Dictionary<string, IArchiveFile> GetOrBuildArchiveIndex(IArchiveReader reader)
+    {
+        if (_archiveIndexes.TryGetValue(reader, out var existing))
+        {
+            return existing;
+        }
+
+        // Case-insensitive: real-world archives frequently mix casing between what a plugin's own
+        // Model.File path uses and what got packed into the archive - see ArchiveAwareFileProbe's
+        // own identical indexing for the same fix applied to the vanilla game's own BSAs.
+        var index = new Dictionary<string, IArchiveFile>(StringComparer.OrdinalIgnoreCase);
+        foreach (var archiveFile in reader.Files)
+        {
+            index.TryAdd(archiveFile.Path, archiveFile);
+        }
+
+        _archiveIndexes[reader] = index;
+        return index;
+    }
+
+    public void Dispose()
+    {
+        if (_modArchiveReaders is null)
+        {
+            return;
+        }
+
+        foreach (var reader in _modArchiveReaders)
+        {
+            (reader as IDisposable)?.Dispose();
+        }
     }
 
     /// <summary>

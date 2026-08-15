@@ -4,8 +4,9 @@ namespace AutoBlend.Core.Scanning;
 
 /// <summary>
 /// Layers a Mod Organizer 2 instance's virtual file system without needing to actually run
-/// through MO2, using <see cref="Mo2InstanceReader"/> for the overwrite/mod-priority resolution,
-/// and falling back to the real game Data folder (loose + BSA/BA2) for anything no mod provides.
+/// through MO2, using <see cref="Mo2InstanceReader"/> for the overwrite/mod-priority resolution
+/// (loose files, then each mod's own BSA/BA2 archives), and falling back to the real game Data
+/// folder (loose + BSA/BA2) for anything no mod provides.
 /// </summary>
 public sealed class Mo2ModlistFileProbe : IGameFileProbe
 {
@@ -19,10 +20,10 @@ public sealed class Mo2ModlistFileProbe : IGameFileProbe
     }
 
     public bool Exists(string relativeDataPath) =>
-        _reader.TryResolve(relativeDataPath, out _) || _vanillaProbe.Exists(relativeDataPath);
+        _reader.ExistsLooseOrArchived(relativeDataPath) || _vanillaProbe.Exists(relativeDataPath);
 
     public Stream OpenRead(string relativeDataPath) =>
-        _reader.TryResolve(relativeDataPath, out var fullPath) ? File.OpenRead(fullPath) : _vanillaProbe.OpenRead(relativeDataPath);
+        _reader.TryResolveLooseOrArchived(relativeDataPath, out var stream) ? stream : _vanillaProbe.OpenRead(relativeDataPath);
 
     public void Dispose() => _vanillaProbe.Dispose();
 }
