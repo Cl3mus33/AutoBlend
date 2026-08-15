@@ -6,7 +6,7 @@
     "close": "Chiudi"
   },
   "launcher": {
-    "intro": "Analizza il tuo ordine di caricamento alla ricerca di varianti di texture del paesaggio (sottocartelle statics/blending sotto */landscape/) e patcha le mesh corrispondenti passando da alpha-test ad alpha-blend, generando un plugin di output dedicato con i texture set derivati.",
+    "intro": "Analizza il tuo ordine di caricamento alla ricerca di varianti di texture statics/blending/blend (es. una sottocartella \"statics\" accanto a qualsiasi texture) e patcha le mesh corrispondenti passando da alpha-test ad alpha-blend, generando un plugin di output dedicato con i texture set derivati.",
     "configProfile": {
       "label": "Profilo di configurazione",
       "load": "Carica configurazione...",

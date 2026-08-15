@@ -6,7 +6,7 @@
     "close": "Close"
   },
   "launcher": {
-    "intro": "Scans your load order for landscape texture variants (statics/blending subfolders under */landscape/) and patches matching meshes to alpha-blend instead of alpha-test, generating a dedicated output plugin with the derived texture sets.",
+    "intro": "Scans your load order for statics/blending/blend texture variants (e.g. a \"statics\" subfolder next to any texture) and patches matching meshes to alpha-blend instead of alpha-test, generating a dedicated output plugin with the derived texture sets.",
     "configProfile": {
       "label": "Config Profile",
       "load": "Load Config...",

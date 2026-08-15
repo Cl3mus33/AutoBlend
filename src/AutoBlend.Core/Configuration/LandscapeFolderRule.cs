@@ -21,5 +21,6 @@ public sealed class LandscapeFolderRule
     {
         new LandscapeFolderRule("statics", "Statics"),
         new LandscapeFolderRule("blending", "Blending"),
+        new LandscapeFolderRule("blend", "Blend"),
     };
 }

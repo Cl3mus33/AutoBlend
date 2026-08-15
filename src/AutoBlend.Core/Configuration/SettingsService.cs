@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 
 namespace AutoBlend.Core.Configuration;
@@ -27,7 +28,19 @@ public sealed class SettingsService
         }
 
         var json = File.ReadAllText(_settingsPath);
-        return JsonSerializer.Deserialize<PatcherSettings>(json, JsonOptions) ?? new PatcherSettings();
+        var settings = JsonSerializer.Deserialize<PatcherSettings>(json, JsonOptions) ?? new PatcherSettings();
+
+        // A settings.json saved before the "blend" rule was introduced has only its own two
+        // entries (statics/blending) - deserialization replaces the list wholesale rather than
+        // merging against LandscapeFolderRule.Defaults, so an existing user's file would otherwise
+        // never pick up the new rule at all. Backfill it once here rather than requiring a manual
+        // settings.json edit or a full reset.
+        if (!settings.LandscapeFolderRules.Any(r => r.FolderName.Equals("blend", StringComparison.OrdinalIgnoreCase)))
+        {
+            settings.LandscapeFolderRules.Add(new LandscapeFolderRule("blend", "Blend"));
+        }
+
+        return settings;
     }
 
     public void Save(PatcherSettings settings)

@@ -44,6 +44,7 @@ struct ABParams {
     std::vector<ABLandscapeFolderRule> landscapeFolderRules {
         { L"statics", L"Statics" },
         { L"blending", L"Blending" },
+        { L"blend", L"Blend" },
     };
 
     std::vector<std::wstring> meshBlacklist { LR"(*\glass\*)", LR"(*\ice\*)" };

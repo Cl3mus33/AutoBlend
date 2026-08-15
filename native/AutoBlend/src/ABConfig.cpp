@@ -6,7 +6,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <fstream>
+#include <wchar.h>
 
 // <windows.h> before <shlobj.h> so knownfolders.h's FOLDERID_* GUID definitions see properly
 // set-up COM/GUID macros (DECLSPEC_SELECTANY etc.) - matches util/StringUtil.cpp's fix for the
@@ -79,6 +81,16 @@ auto ABConfig::loadFrom(const filesystem::path& configFilePath) -> ABParams
                     StringUtil::utf8toUTF16(item.value("FolderName", string {})),
                     StringUtil::utf8toUTF16(item.value("TypeLabel", string {})),
                 });
+            }
+
+            // A settings.json saved before the "blend" rule was introduced only has its own two
+            // entries (statics/blending) - the block above replaces the list wholesale rather than
+            // merging against ABParams' own default member initializer, so an existing user's file
+            // would otherwise never pick up the new rule. Backfill it once here.
+            const bool hasBlendRule = std::any_of(params.landscapeFolderRules.begin(), params.landscapeFolderRules.end(),
+                [](const ABLandscapeFolderRule& r) { return _wcsicmp(r.folderName.c_str(), L"blend") == 0; });
+            if (!hasBlendRule) {
+                params.landscapeFolderRules.push_back({ L"blend", L"Blend" });
             }
         }
         if (configJ.contains("MeshBlacklist")) {

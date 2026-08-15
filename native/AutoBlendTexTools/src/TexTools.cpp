@@ -50,10 +50,9 @@ auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath) -> int
 
     // Block-compressed formats (BC1/BC3/BC7 etc.) can't be edited pixel-by-pixel directly - the
     // alpha bits are packed per 4x4 block alongside color data, not a separate plane - so this
-    // decompresses to plain RGBA8 first and recompresses back to the original format afterward.
-    const bool wasCompressed = IsCompressed(srcMetadata.format);
+    // decompresses to plain RGBA8 first and recompresses afterward.
     ScratchImage decompressed;
-    if (wasCompressed) {
+    if (IsCompressed(srcMetadata.format)) {
         if (FAILED(Decompress(images, imageCount, srcMetadata, DXGI_FORMAT_R8G8B8A8_UNORM, decompressed))) {
             return 2;
         }
@@ -75,46 +74,40 @@ auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath) -> int
         return 3;
     }
 
-    const Image* finalImages = opaqueImage.GetImages();
-    size_t finalImageCount = opaqueImage.GetImageCount();
-    TexMetadata finalMetadata = opaqueImage.GetMetadata();
-
+    // Always (re)compress to BC7, regardless of what format the winning source happened to be in
+    // (BC1/BC3/BC7/uncompressed all occur across a real modlist) - keeps every generated statics
+    // texture on one consistent, modern format instead of inheriting a mix, and BC7 is Skyrim SE's
+    // own preferred diffuse format anyway.
     ScratchImage recompressed;
-    if (wasCompressed) {
-        HRESULT compressHr = E_FAIL;
+    HRESULT compressHr = E_FAIL;
 
-        // GPU path first (DirectCompute-based, dramatically faster for BC7 in particular - see the
-        // getSharedD3D11Device() comment above for why). alphaWeight 1.0 is DirectXTex's own
-        // documented "typical value" for BC7.
-        if (auto* device = getSharedD3D11Device(); device != nullptr) {
-            compressHr = Compress(
-                device, opaqueImage.GetImages(), opaqueImage.GetImageCount(), opaqueImage.GetMetadata(),
-                srcMetadata.format, TEX_COMPRESS_DEFAULT, 1.0f, recompressed);
-        }
-
-        if (FAILED(compressHr)) {
-            // CPU fallback: TEX_COMPRESS_DEFAULT does NOT use multithreading and, for BC7, runs an
-            // exhaustive partition search - measured taking 15-25s for a single 4K landscape
-            // texture. PARALLEL enables DirectXTex's own OpenMP-based multithreading (already a
-            // build dependency - see CMakeLists.txt's vcomp140.dll bundling); BC7_QUICK swaps the
-            // exhaustive search for BC7's minimal-mode encoder. Output is a synthesized fallback
-            // texture (RGB already went through one lossy decompress/recompress round-trip
-            // regardless), so the modest quality trade for far less compute is the right call.
-            const auto compressFlags = static_cast<TEX_COMPRESS_FLAGS>(TEX_COMPRESS_PARALLEL | TEX_COMPRESS_BC7_QUICK);
-            compressHr = Compress(
-                opaqueImage.GetImages(), opaqueImage.GetImageCount(), opaqueImage.GetMetadata(),
-                srcMetadata.format, compressFlags, TEX_THRESHOLD_DEFAULT, recompressed);
-        }
-
-        if (FAILED(compressHr)) {
-            return 4;
-        }
-        finalImages = recompressed.GetImages();
-        finalImageCount = recompressed.GetImageCount();
-        finalMetadata = recompressed.GetMetadata();
+    // GPU path first (DirectCompute-based, dramatically faster for BC7 in particular - see the
+    // getSharedD3D11Device() comment above for why). alphaWeight 1.0 is DirectXTex's own
+    // documented "typical value" for BC7.
+    if (auto* device = getSharedD3D11Device(); device != nullptr) {
+        compressHr = Compress(device, opaqueImage.GetImages(), opaqueImage.GetImageCount(), opaqueImage.GetMetadata(),
+            DXGI_FORMAT_BC7_UNORM, TEX_COMPRESS_DEFAULT, 1.0f, recompressed);
     }
 
-    if (FAILED(SaveToDDSFile(finalImages, finalImageCount, finalMetadata, DDS_FLAGS_NONE, dstPath))) {
+    if (FAILED(compressHr)) {
+        // CPU fallback: TEX_COMPRESS_DEFAULT does NOT use multithreading and, for BC7, runs an
+        // exhaustive partition search - measured taking 15-25s for a single 4K landscape texture.
+        // PARALLEL enables DirectXTex's own OpenMP-based multithreading (already a build
+        // dependency - see CMakeLists.txt's vcomp140.dll bundling); BC7_QUICK swaps the exhaustive
+        // search for BC7's minimal-mode encoder. Output is a synthesized fallback texture (RGB
+        // already went through one lossy decompress/recompress round-trip regardless), so the
+        // modest quality trade for far less compute is the right call.
+        const auto compressFlags = static_cast<TEX_COMPRESS_FLAGS>(TEX_COMPRESS_PARALLEL | TEX_COMPRESS_BC7_QUICK);
+        compressHr = Compress(opaqueImage.GetImages(), opaqueImage.GetImageCount(), opaqueImage.GetMetadata(),
+            DXGI_FORMAT_BC7_UNORM, compressFlags, TEX_THRESHOLD_DEFAULT, recompressed);
+    }
+
+    if (FAILED(compressHr)) {
+        return 4;
+    }
+
+    if (FAILED(SaveToDDSFile(
+            recompressed.GetImages(), recompressed.GetImageCount(), recompressed.GetMetadata(), DDS_FLAGS_NONE, dstPath))) {
         return 5;
     }
 

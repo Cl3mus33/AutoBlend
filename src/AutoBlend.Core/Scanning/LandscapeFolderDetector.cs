@@ -16,11 +16,16 @@ public sealed record LandscapeFolderDetection(
     string? PbrRmaosPath = null);
 
 /// <summary>
-/// For a vanilla diffuse texture path such as "textures\landscape\dirt02.dds" or
-/// "textures\dlc01\landscape\dirt02.dds", checks whether a sibling variant exists at
-/// ".../landscape/{FolderName}/dirt02.dds" for any configured <see cref="LandscapeFolderRule"/>
-/// (base game, DLC, or mod-added "*\landscape\" paths alike — matching is purely structural,
-/// not tied to a fixed list of known DLC folders).
+/// For a vanilla diffuse texture path such as "textures\landscape\dirt02.dds",
+/// "textures\dlc01\landscape\dirt02.dds", or any other category entirely (e.g.
+/// "textures\dungeons\mines\rock01.dds"), checks whether a sibling variant exists for any
+/// configured <see cref="LandscapeFolderRule"/> — matching is purely structural, not tied to a
+/// fixed list of known categories or DLC folders. For a "*\landscape\..." path, the sibling folder
+/// is inserted right after "landscape" (e.g. ".../landscape/{FolderName}/westweald/rock.dds",
+/// mirroring how landscape texture packs like Vanaheimr/Beyond Skyrim actually ship these); for
+/// every other path, it's inserted as the immediate parent of the file itself (e.g.
+/// ".../mines/{FolderName}/rock01.dds"), matching how non-landscape retextures (e.g. a cave/mine
+/// pack shipping its own "statics" subfolder) place theirs.
 /// </summary>
 public sealed class LandscapeFolderDetector
 {
@@ -28,12 +33,15 @@ public sealed class LandscapeFolderDetector
     private const string TexturesSegment = "textures";
     private const string PbrSegment = "pbr";
 
-    // Auto-generation is only ever attempted for the "statics" folder - alpha-stripping a diffuse
-    // to opaque (see MissingTextureGenerator) is what makes a "statics" sibling, so applying that
-    // same transform to synthesize a "blending" sibling would produce a mislabeled file (opaque,
-    // when a blending variant needs the real alpha gradient). A "blending" sibling can still be
-    // matched if one already exists on disk - it just never gets synthesized.
-    private const string GeneratableFolderName = "statics";
+    // Auto-generation is only ever attempted for the "blend" folder - alpha-stripping a diffuse to
+    // opaque (see MissingTextureGenerator) is what makes an opaque sibling, so applying that same
+    // transform to synthesize a "statics" or "blending" sibling would collide with those two names'
+    // own established real-world meaning (hand-authored by mod texture packs, sometimes with a real
+    // alpha gradient for "blending" specifically) and potentially overwrite/shadow one. "blend" is
+    // AutoBlend's own dedicated output folder, never third-party-authored, so it's safe to own
+    // outright. Existing "statics"/"blending"/"blend" siblings are still matched if already present
+    // on disk (from any mod) - only synthesis is restricted to "blend".
+    private const string GeneratableFolderName = "blend";
 
     private readonly IReadOnlyList<LandscapeFolderRule> _rules;
     private readonly IGameFileProbe _fileProbe;
@@ -97,8 +105,8 @@ public sealed class LandscapeFolderDetector
 
     /// <summary>
     /// Returns the first matching rule (in configured order) whose sub-folder exists next to
-    /// <paramref name="diffusePath"/>, or null if the path has no "landscape" segment or none of
-    /// the configured folders exist there.
+    /// <paramref name="diffusePath"/>, or null if none of the configured folders exist there (or
+    /// can be synthesized - see <see cref="GeneratableFolderName"/>).
     /// </summary>
     /// <param name="diffusePath">
     /// A texture path relative to the Data folder, with or without the leading "textures\" root -
@@ -150,19 +158,34 @@ public sealed class LandscapeFolderDetector
         }
 
         var segments = effectiveDiffusePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var landscapeIndex = Array.FindIndex(segments, s => s.Equals(LandscapeSegment, StringComparison.OrdinalIgnoreCase));
-        if (landscapeIndex < 0 || landscapeIndex == segments.Length - 1)
+        if (segments.Length < 2)
         {
+            // No containing folder to insert a sibling sub-folder into (e.g. a bare filename with
+            // no path at all) - nothing sensible to check.
             return null;
         }
 
+        // Landscape texture packs (Vanaheimr, Beyond Skyrim's westweald, etc.) put statics/blending
+        // directly under "landscape" itself, with any deeper original sub-path nested inside it -
+        // so for a "*\landscape\..." path, anchor there (verified against real packs). Every other
+        // category (architecture, dungeons, clutter - no single established convention across mods)
+        // falls back to the simpler, more universal shape: the sibling folder sits as the immediate
+        // parent of the file it's a variant of - e.g. a mine/cave retexture shipping its own
+        // "textures\dungeons\mines\statics\rock01.dds" next to "textures\dungeons\mines\rock01.dds".
+        var landscapeIndex = Array.FindIndex(segments, s => s.Equals(LandscapeSegment, StringComparison.OrdinalIgnoreCase));
+        var insertIndex = landscapeIndex >= 0 && landscapeIndex < segments.Length - 1
+            ? landscapeIndex + 1
+            : segments.Length - 1;
+
         // The path can already sit inside one of the configured rule folders - e.g. another mod's
-        // own Alternate Texture already points straight at the statics/blending variant. Inserting
-        // the rule folder a second time would look for a "statics/statics/..." path that can never
-        // exist, so recognize this case and treat the path as already-resolved instead.
-        if (landscapeIndex + 1 < segments.Length)
+        // own Alternate Texture already points straight at the statics/blending/blend variant.
+        // Inserting the rule folder a second time would look for a "statics/statics/..." path that
+        // can never exist, so recognize this case and treat the path as already-resolved instead.
+        // Only meaningful for the landscape-anchored insertion point - in the fallback case,
+        // segments[insertIndex] is the file's own name, which can never equal a rule folder name.
+        if (insertIndex < segments.Length - 1)
         {
-            var immediateRule = _rules.FirstOrDefault(r => segments[landscapeIndex + 1].Equals(r.FolderName, StringComparison.OrdinalIgnoreCase));
+            var immediateRule = _rules.FirstOrDefault(r => segments[insertIndex].Equals(r.FolderName, StringComparison.OrdinalIgnoreCase));
             if (immediateRule is not null)
             {
                 return new LandscapeFolderDetection(immediateRule, effectiveDiffusePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
@@ -172,7 +195,7 @@ public sealed class LandscapeFolderDetector
         foreach (var rule in _rules)
         {
             var candidateSegments = segments.ToList();
-            candidateSegments.Insert(landscapeIndex + 1, rule.FolderName);
+            candidateSegments.Insert(insertIndex, rule.FolderName);
             var candidatePath = string.Join('\\', candidateSegments);
 
             if (_fileProbe.Exists(candidatePath))
@@ -184,11 +207,11 @@ public sealed class LandscapeFolderDetector
             // actually winning in the load order (or its PBR sibling, see effectiveDiffusePath
             // above), so a mod author never has to hand-author it (see MissingTextureGenerator's
             // own doc comment for why this is safe: verified to reproduce Vanaheimr's own
-            // hand-authored statics textures almost pixel-for-pixel). Only for "statics" (see
+            // hand-authored statics textures almost pixel-for-pixel). Only for "blend" (see
             // GeneratableFolderName above) and only for textures explicitly listed in
-            // AutoGenerateAllowlist - every landscape texture with an alpha-blended shape is
+            // AutoGenerateAllowlist - every alpha-tested shape with a diffuse texture is
             // structurally "eligible" here, but generating for all of them indiscriminately produced
-            // far more textures than intended (including ones with no real source, or ones a statics
+            // far more textures than intended (including ones with no real source, or ones an opaque
             // variant doesn't actually make sense for), so this is opt-in per texture, not blanket.
             var canGenerate = rule.FolderName.Equals(GeneratableFolderName, StringComparison.OrdinalIgnoreCase)
                 && WildcardMatcher.MatchesAny(vanillaDiffusePath, _autoGenerateAllowlist);
