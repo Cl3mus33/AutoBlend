@@ -1,8 +1,36 @@
+#include <d3d11.h>
 #include <DirectXTex.h>
 
+#include <wrl/client.h>
+
 using namespace DirectX;
+using Microsoft::WRL::ComPtr;
 
 namespace {
+// Real-world landscape texture packs (e.g. Vanaheimr's 4K AIO variants) made the CPU BC7 encoder -
+// even with PARALLEL|BC7_QUICK below - take 15-25s per texture; on a modlist needing dozens of
+// generations that added minutes to every run. DirectXTex's DirectCompute-based GPU compressor
+// (Compress(ID3D11Device*, ...)) does the same BC7 encode in a fraction of the time. Device
+// creation is lazy and cached for this DLL's lifetime (one compression call per texconv-style
+// invocation would otherwise pay device setup cost repeatedly); falls back to the CPU path
+// automatically if no device is available (headless/CI machine, broken driver) or GPU compression
+// itself fails for any reason, so this DLL still works everywhere the pure-CPU version did.
+auto getSharedD3D11Device() -> ID3D11Device*
+{
+    static const ComPtr<ID3D11Device> device = [] {
+        ComPtr<ID3D11Device> result;
+        const D3D_DRIVER_TYPE driverTypes[] = { D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP };
+        for (const auto driverType : driverTypes) {
+            if (SUCCEEDED(D3D11CreateDevice(
+                    nullptr, driverType, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION, &result, nullptr, nullptr))) {
+                return result;
+            }
+        }
+        return ComPtr<ID3D11Device> {};
+    }();
+    return device.Get();
+}
+
 // Skyrim's landscape alpha-blending reads its blend weight from the diffuse texture's own alpha
 // channel, so forcing every pixel's alpha to fully opaque - while leaving RGB untouched - is what
 // turns a blend-edge diffuse into a standalone "statics" one (verified against Vanaheimr's own
@@ -53,17 +81,32 @@ auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath) -> int
 
     ScratchImage recompressed;
     if (wasCompressed) {
-        // TEX_COMPRESS_DEFAULT does NOT use multithreading and, for BC7, runs an exhaustive
-        // partition search - measured taking minutes for a single 2048x2048 landscape texture.
-        // PARALLEL enables DirectXTex's own OpenMP-based multithreading (already a build
-        // dependency - see CMakeLists.txt's vcomp140.dll bundling); BC7_QUICK swaps the exhaustive
-        // search for BC7's minimal-mode encoder. Output is a synthesized fallback texture (RGB
-        // already went through one lossy decompress/recompress round-trip regardless), so the
-        // modest quality trade for multiple orders of magnitude less compute is the right call.
-        const auto compressFlags = static_cast<TEX_COMPRESS_FLAGS>(TEX_COMPRESS_PARALLEL | TEX_COMPRESS_BC7_QUICK);
-        if (FAILED(Compress(
+        HRESULT compressHr = E_FAIL;
+
+        // GPU path first (DirectCompute-based, dramatically faster for BC7 in particular - see the
+        // getSharedD3D11Device() comment above for why). alphaWeight 1.0 is DirectXTex's own
+        // documented "typical value" for BC7.
+        if (auto* device = getSharedD3D11Device(); device != nullptr) {
+            compressHr = Compress(
+                device, opaqueImage.GetImages(), opaqueImage.GetImageCount(), opaqueImage.GetMetadata(),
+                srcMetadata.format, TEX_COMPRESS_DEFAULT, 1.0f, recompressed);
+        }
+
+        if (FAILED(compressHr)) {
+            // CPU fallback: TEX_COMPRESS_DEFAULT does NOT use multithreading and, for BC7, runs an
+            // exhaustive partition search - measured taking 15-25s for a single 4K landscape
+            // texture. PARALLEL enables DirectXTex's own OpenMP-based multithreading (already a
+            // build dependency - see CMakeLists.txt's vcomp140.dll bundling); BC7_QUICK swaps the
+            // exhaustive search for BC7's minimal-mode encoder. Output is a synthesized fallback
+            // texture (RGB already went through one lossy decompress/recompress round-trip
+            // regardless), so the modest quality trade for far less compute is the right call.
+            const auto compressFlags = static_cast<TEX_COMPRESS_FLAGS>(TEX_COMPRESS_PARALLEL | TEX_COMPRESS_BC7_QUICK);
+            compressHr = Compress(
                 opaqueImage.GetImages(), opaqueImage.GetImageCount(), opaqueImage.GetMetadata(),
-                srcMetadata.format, compressFlags, TEX_THRESHOLD_DEFAULT, recompressed))) {
+                srcMetadata.format, compressFlags, TEX_THRESHOLD_DEFAULT, recompressed);
+        }
+
+        if (FAILED(compressHr)) {
             return 4;
         }
         finalImages = recompressed.GetImages();

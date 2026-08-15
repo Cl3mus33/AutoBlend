@@ -12,7 +12,10 @@ add_library(${TEXTOOLS_NAME} SHARED
     src/TexTools.cpp
 )
 target_compile_options(${TEXTOOLS_NAME} PRIVATE /utf-8)
-target_link_libraries(${TEXTOOLS_NAME} PRIVATE Microsoft::DirectXTex)
+# d3d11.lib is part of the Windows SDK (no vcpkg dependency) - used for DirectXTex's optional
+# DirectCompute-based GPU compression path (see TexTools.cpp's getSharedD3D11Device()), with an
+# automatic CPU fallback if no D3D11 device is available at runtime.
+target_link_libraries(${TEXTOOLS_NAME} PRIVATE Microsoft::DirectXTex d3d11)
 
 #
 # vcomp140.dll - the one genuine dynamic dependency left after CMAKE_MSVC_RUNTIME_LIBRARY (set

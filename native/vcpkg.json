@@ -7,6 +7,9 @@
     {
       "name": "directxtex",
       "default-features": false,
+      "features": [
+        "dx11"
+      ],
       "version>=": "2026-05-07"
     },
     {
