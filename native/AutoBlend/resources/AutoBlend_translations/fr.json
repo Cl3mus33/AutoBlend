@@ -2,7 +2,8 @@
   "_language": "Français",
   "common": {
     "browse": "Parcourir",
-    "cancel": "Annuler"
+    "cancel": "Annuler",
+    "close": "Fermer"
   },
   "launcher": {
     "intro": "Analyse votre ordre de chargement à la recherche de variantes de textures de paysage (sous-dossiers statics/blending sous */landscape/) et patche les meshes correspondants pour passer de l'alpha-test à l'alpha-blend, en générant un plugin de sortie dédié avec les texture sets dérivés.",
@@ -43,6 +44,7 @@
     },
     "autoGenerateAllowlist": {
       "label": "Liste blanche de génération automatique",
+      "editButton": "Modifier la liste...",
       "help": "Seules ces textures diffuses sources (relatives à Data, ex. \"textures\\landscape\\dirt01.dds\") reçoivent une texture statics manquante générée automatiquement. Jokers (*) autorisés. Clic droit pour ajouter/supprimer des lignes.",
       "column": "Texture"
     },

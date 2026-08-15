@@ -2,7 +2,8 @@
   "_language": "English",
   "common": {
     "browse": "Browse",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "close": "Close"
   },
   "launcher": {
     "intro": "Scans your load order for landscape texture variants (statics/blending subfolders under */landscape/) and patches matching meshes to alpha-blend instead of alpha-test, generating a dedicated output plugin with the derived texture sets.",
@@ -43,6 +44,7 @@
     },
     "autoGenerateAllowlist": {
       "label": "Auto-Generate Allowlist",
+      "editButton": "Edit Allowlist...",
       "help": "Only these source diffuse textures (relative to Data, e.g. \"textures\\landscape\\dirt01.dds\") get a missing statics sibling synthesized automatically. Wildcards (*) allowed. Right click to add/remove rows.",
       "column": "Texture"
     },

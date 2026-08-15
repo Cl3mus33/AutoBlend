@@ -2,7 +2,8 @@
   "_language": "Deutsch",
   "common": {
     "browse": "Durchsuchen",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "close": "Schließen"
   },
   "launcher": {
     "intro": "Durchsucht deine Ladereihenfolge nach Landschaftstextur-Varianten (statics-/blending-Unterordner unter */landscape/) und patcht die passenden Meshes von Alpha-Test auf Alpha-Blend, wobei ein eigenes Ausgabe-Plugin mit den abgeleiteten Texture Sets erzeugt wird.",
@@ -43,6 +44,7 @@
     },
     "autoGenerateAllowlist": {
       "label": "Positivliste für automatische Generierung",
+      "editButton": "Liste bearbeiten...",
       "help": "Nur für diese Quell-Diffuse-Texturen (relativ zu Data, z. B. \"textures\\landscape\\dirt01.dds\") wird automatisch eine fehlende Statics-Variante erzeugt. Platzhalter (*) erlaubt. Rechtsklick zum Hinzufügen/Entfernen von Zeilen.",
       "column": "Textur"
     },

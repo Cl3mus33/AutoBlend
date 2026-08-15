@@ -29,7 +29,7 @@ auto makeSectionLabel(wxWindow* parent, const wxString& text) -> wxStaticText*
 }
 
 LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exePath)
-    : wxDialog(nullptr, wxID_ANY, "AutoBlend", wxDefaultPosition, wxSize(600, 900), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+    : wxDialog(nullptr, wxID_ANY, "AutoBlend", wxDefaultPosition, wxSize(600, 880), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
     , m_exePath(std::move(exePath))
     , m_textureSetNamingTemplate(initParams.textureSetNamingTemplate)
 {
@@ -231,23 +231,33 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     // statics sibling (see AutoBlend.Core.Scanning.MissingTextureGenerator). Every landscape texture
     // with an alpha-blended shape is structurally eligible, but generation only actually runs for
     // entries listed here, so this is an opt-in table rather than an exclusion list like the two
-    // above it. Collapsed by default (same wxCollapsiblePane pattern as ProgressWindow's own
-    // "Show details") - this table is long (dozens of rows) and rarely needs editing, so hiding it
-    // behind a click keeps the rest of the launcher compact.
-    m_autoGenerateAllowlistPane = new wxCollapsiblePane(body, wxID_ANY, ABTr("launcher.autoGenerateAllowlist.label", "Auto-Generate Allowlist"));
-    auto* autoGenerateAllowlistPaneWindow = m_autoGenerateAllowlistPane->GetPane();
-    auto* autoGenerateAllowlistPaneSizer = new wxBoxSizer(wxVERTICAL);
+    // above it. Same label + button pattern as Config Profile above: this table is long (dozens of
+    // rows) and rarely needs editing, so it lives in its own dialog behind an "Edit Allowlist..."
+    // button instead of always being visible inline.
+    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.autoGenerateAllowlist.label", "Auto-Generate Allowlist")), 0,
+        wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
 
-    auto* autoGenerateAllowlistHelpText = new wxStaticText(autoGenerateAllowlistPaneWindow, wxID_ANY,
+    auto* editAllowlistButton = new wxButton(body, wxID_ANY, ABTr("launcher.autoGenerateAllowlist.editButton", "Edit Allowlist..."));
+    editAllowlistButton->Bind(wxEVT_BUTTON, &LauncherWindow::onEditAllowlistButtonPressed, this);
+    bodySizer->Add(editAllowlistButton, 0, wxALL, BORDER_SIZE);
+
+    // Built once here (not recreated per click) so edits persist across repeated opens within this
+    // LauncherWindow's lifetime, exactly like every other field - onEditAllowlistButtonPressed just
+    // shows/hides this same dialog instance.
+    m_autoGenerateAllowlistDialog = new wxDialog(this, wxID_ANY, ABTr("launcher.autoGenerateAllowlist.label", "Auto-Generate Allowlist"),
+        wxDefaultPosition, wxSize(520, 520), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER);
+    auto* allowlistDialogSizer = new wxBoxSizer(wxVERTICAL);
+
+    auto* autoGenerateAllowlistHelpText = new wxStaticText(m_autoGenerateAllowlistDialog, wxID_ANY,
         ABTr("launcher.autoGenerateAllowlist.help",
             "Only these source diffuse textures (relative to Data, e.g. \"textures\\landscape\\dirt01.dds\") "
             "get a missing statics sibling synthesized automatically. Wildcards (*) allowed. Right click to "
             "add/remove rows."));
-    autoGenerateAllowlistHelpText->Wrap(560);
-    autoGenerateAllowlistPaneSizer->Add(autoGenerateAllowlistHelpText, 0, wxEXPAND | wxBOTTOM, BORDER_SIZE);
+    autoGenerateAllowlistHelpText->Wrap(480);
+    allowlistDialogSizer->Add(autoGenerateAllowlistHelpText, 0, wxEXPAND | wxALL, BORDER_SIZE);
 
     m_autoGenerateAllowlistCtrl = new PGModifiableListCtrl(
-        autoGenerateAllowlistPaneWindow, wxID_ANY, wxDefaultPosition, wxSize(-1, 260), wxLC_REPORT | wxLC_EDIT_LABELS | wxLC_NO_HEADER);
+        m_autoGenerateAllowlistDialog, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_EDIT_LABELS | wxLC_NO_HEADER);
     m_autoGenerateAllowlistCtrl->AppendColumn(
         ABTr("launcher.autoGenerateAllowlist.column", "Texture"), wxLIST_FORMAT_LEFT, wxLIST_AUTOSIZE_USEHEADER);
     m_autoGenerateAllowlistCtrl->SetColumnWidth(0, wxLIST_AUTOSIZE_USEHEADER);
@@ -258,11 +268,18 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     }
     m_autoGenerateAllowlistCtrl->InsertItem(m_autoGenerateAllowlistCtrl->GetItemCount(), "");
 
-    autoGenerateAllowlistPaneSizer->Add(m_autoGenerateAllowlistCtrl, 1, wxEXPAND);
-    autoGenerateAllowlistPaneWindow->SetSizer(autoGenerateAllowlistPaneSizer);
+    allowlistDialogSizer->Add(m_autoGenerateAllowlistCtrl, 1, wxEXPAND | wxALL, BORDER_SIZE);
 
-    bodySizer->Add(m_autoGenerateAllowlistPane, 0, wxEXPAND | wxALL, BORDER_SIZE);
-    m_autoGenerateAllowlistPane->Bind(wxEVT_COLLAPSIBLEPANE_CHANGED, &LauncherWindow::onAutoGenerateAllowlistPaneChanged, this);
+    auto* allowlistCloseButton = new wxButton(m_autoGenerateAllowlistDialog, wxID_OK, ABTr("common.close", "Close"));
+    allowlistDialogSizer->Add(allowlistCloseButton, 0, wxALIGN_RIGHT | wxALL, BORDER_SIZE);
+
+    m_autoGenerateAllowlistDialog->SetSizer(allowlistDialogSizer);
+    m_autoGenerateAllowlistDialog->Bind(wxEVT_SIZE, [this](wxSizeEvent& event) -> void {
+        if (m_autoGenerateAllowlistCtrl != nullptr && m_autoGenerateAllowlistCtrl->GetColumnCount() > 0) {
+            m_autoGenerateAllowlistCtrl->SetColumnWidth(0, m_autoGenerateAllowlistCtrl->GetClientSize().GetWidth());
+        }
+        event.Skip();
+    });
 
     // PBR slots - when the winning source for an auto-generated statics texture is itself from a
     // PBR pack, carry its Height/RMAOS slots into the derived TextureSet too, not just Diffuse/
@@ -510,11 +527,9 @@ void LauncherWindow::updateListColumnWidths()
     }
 }
 
-void LauncherWindow::onAutoGenerateAllowlistPaneChanged([[maybe_unused]] wxCollapsiblePaneEvent& event)
+void LauncherWindow::onEditAllowlistButtonPressed([[maybe_unused]] wxCommandEvent& event)
 {
-    updateListColumnWidths();
-    Layout();
-    GetSizer()->Fit(this);
+    m_autoGenerateAllowlistDialog->ShowModal();
 }
 
 void LauncherWindow::onOkButtonPressed([[maybe_unused]] wxCommandEvent& event)
