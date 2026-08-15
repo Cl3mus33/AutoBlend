@@ -28,6 +28,20 @@ public sealed class LandscapeFolderDetector
     private readonly MissingTextureGenerator? _textureGenerator;
     private readonly IReadOnlyList<string> _autoGenerateAllowlist;
 
+    // Detect() is a pure function of diffusePath given this detector's own immutable rule/allowlist
+    // config plus fileProbe/textureGenerator state that only ever monotonically "improves" within a
+    // single run (a generated statics texture starts existing and stays that way) - so the very
+    // first Detect() call for a given diffusePath already produces the final answer for the rest of
+    // the run, and repeating it is redundant. On a real modlist the same handful of landscape
+    // textures (e.g. "textures\landscape\dirt02.dds") are the embedded default for thousands of
+    // distinct meshes, and a cache miss here previously meant redoing every rule's fileProbe.Exists
+    // check (itself a scan across every enabled MO2 mod folder when the file isn't found) plus the
+    // AutoGenerateAllowlist wildcard match from scratch each time. Keyed on the raw input string
+    // (case-insensitive, matching every other path-keyed cache in this codebase) rather than a
+    // further-normalized form - safe either way, just a slightly lower hit rate for callers who mix
+    // path conventions for the same texture, never a wrong result.
+    private readonly Dictionary<string, LandscapeFolderDetection?> _detectCache = new(StringComparer.OrdinalIgnoreCase);
+
     /// <param name="textureGenerator">
     /// When set, a texture with no existing statics sibling - AND matching
     /// <paramref name="autoGenerateAllowlist"/> - gets one synthesized on the fly (see
@@ -69,6 +83,18 @@ public sealed class LandscapeFolderDetector
     /// TXST-sourced path, so the caller's own fallback silently substituted the wrong texture.
     /// </param>
     public LandscapeFolderDetection? Detect(string diffusePath)
+    {
+        if (_detectCache.TryGetValue(diffusePath, out var cached))
+        {
+            return cached;
+        }
+
+        var result = DetectCore(diffusePath);
+        _detectCache[diffusePath] = result;
+        return result;
+    }
+
+    private LandscapeFolderDetection? DetectCore(string diffusePath)
     {
         var vanillaDiffusePath = diffusePath.TrimStart('\\', '/');
         var segments = vanillaDiffusePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
