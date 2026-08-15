@@ -46,6 +46,9 @@
       "help": "Seules ces textures diffuses sources (relatives à Data, ex. \"textures\\landscape\\dirt01.dds\") reçoivent une texture statics manquante générée automatiquement. Jokers (*) autorisés. Clic droit pour ajouter/supprimer des lignes.",
       "column": "Texture"
     },
+    "generatePbrSlots": {
+      "label": "Générer les slots PBR (Height/RMAOS)"
+    },
     "language": {
       "label": "Langue"
     },

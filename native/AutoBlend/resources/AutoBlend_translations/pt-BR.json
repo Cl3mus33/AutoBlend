@@ -46,6 +46,9 @@
       "help": "Somente estas texturas difusas de origem (relativas a Data, ex. \"textures\\landscape\\dirt01.dds\") recebem uma variante statics ausente gerada automaticamente. Curingas (*) permitidos. Clique com o botão direito para adicionar/remover linhas.",
       "column": "Textura"
     },
+    "generatePbrSlots": {
+      "label": "Gerar slots PBR (Height/RMAOS)"
+    },
     "language": {
       "label": "Idioma"
     },

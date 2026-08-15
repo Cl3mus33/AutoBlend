@@ -29,7 +29,7 @@ auto makeSectionLabel(wxWindow* parent, const wxString& text) -> wxStaticText*
 }
 
 LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exePath)
-    : wxDialog(nullptr, wxID_ANY, "AutoBlend", wxDefaultPosition, wxSize(600, 1030), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+    : wxDialog(nullptr, wxID_ANY, "AutoBlend", wxDefaultPosition, wxSize(600, 1070), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
     , m_exePath(std::move(exePath))
     , m_textureSetNamingTemplate(initParams.textureSetNamingTemplate)
 {
@@ -257,6 +257,13 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
 
     bodySizer->Add(m_autoGenerateAllowlistCtrl, 1, wxEXPAND | wxALL, BORDER_SIZE);
 
+    // PBR slots - when the winning source for an auto-generated statics texture is itself from a
+    // PBR pack, carry its Height/RMAOS slots into the derived TextureSet too, not just Diffuse/
+    // Normal. Off by default to keep the original vanilla-friendly behavior.
+    m_generatePbrSlotsCheckbox = new wxCheckBox(body, wxID_ANY, ABTr("launcher.generatePbrSlots.label", "Generate PBR slots (Height/RMAOS)"));
+    m_generatePbrSlotsCheckbox->SetValue(initParams.generatePbrSlots);
+    bodySizer->Add(m_generatePbrSlotsCheckbox, 0, wxALL, BORDER_SIZE);
+
     body->SetSizer(bodySizer);
     mainSizer->Add(body, 1, wxEXPAND | wxALL, BORDER_SIZE);
 
@@ -350,6 +357,8 @@ void LauncherWindow::getParams(ABParams& outParams) const
             outParams.autoGenerateAllowlist.push_back(text.ToStdWstring());
         }
     }
+
+    outParams.generatePbrSlots = m_generatePbrSlotsCheckbox->GetValue();
 }
 
 void LauncherWindow::onLanguageChanged([[maybe_unused]] wxCommandEvent& event)
@@ -472,6 +481,8 @@ void LauncherWindow::applyLoadedParams(const ABParams& params)
         m_autoGenerateAllowlistCtrl->InsertItem(autoGenerateAllowlistIndex++, wxString(entry));
     }
     m_autoGenerateAllowlistCtrl->InsertItem(m_autoGenerateAllowlistCtrl->GetItemCount(), "");
+
+    m_generatePbrSlotsCheckbox->SetValue(params.generatePbrSlots);
 
     updateListColumnWidths();
 }

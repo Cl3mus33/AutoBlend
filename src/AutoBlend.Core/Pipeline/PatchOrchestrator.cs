@@ -138,7 +138,7 @@ public sealed class PatchOrchestrator
         }
 
         var patchMod = new SkyrimMod(new ModKey(PatchModName, ModType.Plugin), skyrimRelease);
-        var txstFactory = new DerivedTextureSetFactory(patchMod, _settings.TextureSetNamingTemplate);
+        var txstFactory = new DerivedTextureSetFactory(patchMod, _settings.TextureSetNamingTemplate, _settings.GeneratePbrSlots);
         var derivedTxstCache = new Dictionary<string, TextureSet>(StringComparer.OrdinalIgnoreCase);
 
         Report("Scanning Static and MoveableStatic records...");

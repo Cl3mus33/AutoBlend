@@ -46,6 +46,9 @@
       "help": "Nur für diese Quell-Diffuse-Texturen (relativ zu Data, z. B. \"textures\\landscape\\dirt01.dds\") wird automatisch eine fehlende Statics-Variante erzeugt. Platzhalter (*) erlaubt. Rechtsklick zum Hinzufügen/Entfernen von Zeilen.",
       "column": "Textur"
     },
+    "generatePbrSlots": {
+      "label": "PBR-Slots generieren (Height/RMAOS)"
+    },
     "language": {
       "label": "Sprache"
     },

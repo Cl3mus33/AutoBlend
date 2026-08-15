@@ -46,6 +46,9 @@
       "help": "Solo queste texture diffuse sorgente (relative a Data, es. \"textures\\landscape\\dirt01.dds\") ricevono una variante statics mancante generata automaticamente. Caratteri jolly (*) consentiti. Clic destro per aggiungere/rimuovere righe.",
       "column": "Texture"
     },
+    "generatePbrSlots": {
+      "label": "Genera slot PBR (Height/RMAOS)"
+    },
     "language": {
       "label": "Lingua"
     },

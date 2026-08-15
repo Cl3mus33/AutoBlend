@@ -89,6 +89,16 @@ public sealed class PatcherSettings
     /// textures this project's own author has verified need one; add more (or wildcard patterns
     /// like "textures\mymod\landscape\*") for any other texture pack's own base landscape textures.
     /// </summary>
+    /// <summary>
+    /// When true, a derived TextureSet also carries forward the winning source TextureSet's own
+    /// Height and EnvironmentMaskOrSubsurfaceTint (RMAOS) slots, not just Diffuse/Normal - so if a
+    /// PBR texture pack is what's actually winning in the load order for a given texture, the
+    /// derived "statics" TextureSet inherits its PBR slots too, instead of leaving them empty for a
+    /// downstream tool to fill in. False (default) keeps the original vanilla-friendly behavior:
+    /// only Diffuse and Normal/Gloss are ever set.
+    /// </summary>
+    public bool GeneratePbrSlots { get; set; }
+
     public List<string> AutoGenerateAllowlist { get; set; } = new()
     {
         @"textures\_resourcepack\landscape\desertrocks01_d.dds",

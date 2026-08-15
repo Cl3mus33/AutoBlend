@@ -49,6 +49,7 @@ private:
     PGModifiableListCtrl* m_meshBlacklistCtrl;
     PGModifiableListCtrl* m_editorIdKeywordsCtrl;
     PGModifiableListCtrl* m_autoGenerateAllowlistCtrl;
+    wxCheckBox* m_generatePbrSlotsCheckbox;
     wxButton* m_okButton;
 
     void onLanguageChanged(wxCommandEvent& event);

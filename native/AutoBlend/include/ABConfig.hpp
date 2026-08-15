@@ -56,6 +56,14 @@ struct ABParams {
     /// AutoBlend.Core.Scanning.MissingTextureGenerator) instead of being left unpatched.
     bool autoGenerateMissingStatics = true;
 
+    /// @brief When true, a derived TextureSet also carries forward the winning source
+    /// TextureSet's own Height and EnvironmentMaskOrSubsurfaceTint (RMAOS) slots - Skyrim's 4-slot
+    /// PBR convention (Diffuse/Normal/Height/RMAOS) - not just Diffuse/Normal. Correct when a PBR
+    /// texture pack is what's actually winning in the load order for a given texture, so its own
+    /// PBR maps carry through to the derived "statics" TextureSet instead of being left for a
+    /// downstream tool to fill in. False (default) keeps the original vanilla-friendly behavior.
+    bool generatePbrSlots = false;
+
     /// @brief Wildcard patterns (e.g. "textures\landscape\dirt01.dds", or
     /// "textures\mymod\landscape\*") gating which source diffuse textures autoGenerateMissingStatics
     /// is allowed to synthesize a statics sibling for - every landscape texture with an

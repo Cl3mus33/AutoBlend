@@ -46,6 +46,9 @@
       "help": "Only these source diffuse textures (relative to Data, e.g. \"textures\\landscape\\dirt01.dds\") get a missing statics sibling synthesized automatically. Wildcards (*) allowed. Right click to add/remove rows.",
       "column": "Texture"
     },
+    "generatePbrSlots": {
+      "label": "Generate PBR slots (Height/RMAOS)"
+    },
     "language": {
       "label": "Language"
     },
