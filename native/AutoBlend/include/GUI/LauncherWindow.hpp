@@ -4,6 +4,7 @@
 #include "ABLocale.hpp"
 #include "GUI/components/PGModifiableListCtrl.hpp"
 
+#include <wx/collpane.h>
 #include <wx/wx.h>
 
 #include <filesystem>
@@ -48,6 +49,7 @@ private:
     std::wstring m_textureSetNamingTemplate;
     PGModifiableListCtrl* m_meshBlacklistCtrl;
     PGModifiableListCtrl* m_editorIdKeywordsCtrl;
+    wxCollapsiblePane* m_autoGenerateAllowlistPane;
     PGModifiableListCtrl* m_autoGenerateAllowlistCtrl;
     wxCheckBox* m_generatePbrSlotsCheckbox;
     wxButton* m_okButton;
@@ -61,6 +63,7 @@ private:
     void onLoadConfig(wxCommandEvent& event);
     void onSaveConfigAs(wxCommandEvent& event);
     void onOkButtonPressed(wxCommandEvent& event);
+    void onAutoGenerateAllowlistPaneChanged(wxCollapsiblePaneEvent& event);
     void updateListColumnWidths();
     void updateMo2FieldState();
     void applyLoadedParams(const ABParams& params);
