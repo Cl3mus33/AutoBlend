@@ -52,7 +52,14 @@ First release.
   library called in-process - not a subprocess, so it stays compatible with MO2's USVFS process
   hooking) whenever nothing already provides one, so texture authors no longer need to hand-author
   these siblings themselves. Verified to reproduce Vanaheimr's own hand-authored statics textures
-  almost pixel-for-pixel (identical RGB, only the alpha channel changes) - not an approximation. On this
-  project's own test modlist, this took coverage from 73 in-place-patched meshes/195 Alternate
-  Texture assignments to 239/1140. Enabled by default (`AutoGenerateMissingStatics` in
-  settings.json); silently has no effect if `texconv.exe` isn't present.
+  almost pixel-for-pixel (identical RGB, only the alpha channel changes) - not an approximation.
+  Only ever runs for textures explicitly listed in `AutoGenerateAllowlist` (defaults to the base
+  game/DLC/Beyond Skyrim landscape textures already hand-verified) rather than blanket-covering
+  every structurally-eligible texture, and runs as its own upfront phase before any mesh scanning
+  starts. Editable in the native shell as an inline table, same pattern as the mesh/EditorID
+  blacklists. Enabled by default (`AutoGenerateMissingStatics` in settings.json).
+- Resolves each mod's own packed BSA/BA2 archives, not just its loose files, when reading a Mod
+  Organizer 2 load order - previously only loose files were ever checked, so any mod shipping
+  assets packed into its own archive (e.g. Beyond Skyrim's `BSAssets.bsa`) was invisible entirely.
+  Honors MO2's own priority order throughout, with loose always beating archived regardless of
+  which mod either comes from, matching Skyrim's own engine behavior.
