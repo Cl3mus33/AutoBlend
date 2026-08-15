@@ -184,3 +184,37 @@ add_custom_command(
         "${CMAKE_BINARY_DIR}/bin/AutoBlend_dotnetlib/texconv.exe"
     COMMENT "Copying texconv.exe to build/bin/AutoBlend_dotnetlib"
 )
+
+#
+# texconv.exe's own VC++ runtime DLLs
+#
+# Unlike AutoBlend.exe itself (statically linked, see CMAKE_MSVC_RUNTIME_LIBRARY in the root
+# CMakeLists.txt), texconv.exe is a prebuilt Microsoft binary we don't compile ourselves, so our
+# static-linkage settings don't apply to it - dumpbin /dependents confirms it dynamically needs
+# MSVCP140.dll, VCRUNTIME140.dll, VCRUNTIME140_1.dll (all three from the CRT redist) and
+# VCOMP140.DLL (from the OpenMP redist). Without these next to it, texconv.exe fails to start on
+# any machine that doesn't already have the matching VC++ Redistributable installed. Copied from
+# the toolset's own Redist folder (populated by vcvars64.bat, which build.bat always calls first)
+# rather than assuming the target machine already has them - same fix AutoSeasons applied to its
+# own exe for vcomp140.dll (see AutoSeasons/CMakeLists.txt).
+#
+if(NOT DEFINED ENV{VCToolsRedistDir})
+    message(FATAL_ERROR "VCToolsRedistDir is not set - configure/build from a Developer Command Prompt (or via vcvars64.bat, like build.bat does) so texconv.exe's runtime DLLs can be located.")
+endif()
+
+file(GLOB TEXCONV_CRT_DLLS
+    "$ENV{VCToolsRedistDir}x64/Microsoft.VC*.CRT/msvcp140.dll"
+    "$ENV{VCToolsRedistDir}x64/Microsoft.VC*.CRT/vcruntime140.dll"
+    "$ENV{VCToolsRedistDir}x64/Microsoft.VC*.CRT/vcruntime140_1.dll"
+)
+file(GLOB TEXCONV_OPENMP_DLL "$ENV{VCToolsRedistDir}x64/Microsoft.VC*.OpenMP/vcomp140.dll")
+list(GET TEXCONV_OPENMP_DLL 0 TEXCONV_OPENMP_DLL)
+
+add_custom_command(
+    TARGET ${EXE_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${TEXCONV_CRT_DLLS}
+        "${TEXCONV_OPENMP_DLL}"
+        "${CMAKE_BINARY_DIR}/bin/AutoBlend_dotnetlib/"
+    COMMENT "Copying texconv.exe's VC++ runtime DLLs to build/bin/AutoBlend_dotnetlib"
+)

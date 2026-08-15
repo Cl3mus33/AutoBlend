@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 
 namespace AutoBlend.Core.Scanning;
 
@@ -79,9 +80,12 @@ public sealed class MissingTextureGenerator
             return false;
         }
 
+        var outputDir = Path.GetDirectoryName(generatedFullPath)!;
+        var createdOutputDir = !Directory.Exists(outputDir);
+        var success = false;
+
         try
         {
-            var outputDir = Path.GetDirectoryName(generatedFullPath)!;
             Directory.CreateDirectory(outputDir);
 
             var psi = new ProcessStartInfo
@@ -125,6 +129,7 @@ public sealed class MissingTextureGenerator
             }
 
             File.Move(texconvOutputPath, generatedFullPath);
+            success = true;
             return true;
         }
         finally
@@ -136,6 +141,27 @@ public sealed class MissingTextureGenerator
             catch
             {
                 // best-effort cleanup of the temp extraction
+            }
+
+            // Directory.CreateDirectory above may have created an empty "statics"/"blending"
+            // folder that a failed generation never populated - remove it so a run that can't
+            // generate anything (e.g. texconv.exe missing its runtime DLLs) doesn't litter the
+            // output textures tree with empty subfolders. Only touches directories this call
+            // itself created, and only if still empty, so a folder another texture already
+            // populated is never removed.
+            if (!success && createdOutputDir)
+            {
+                try
+                {
+                    if (Directory.Exists(outputDir) && !Directory.EnumerateFileSystemEntries(outputDir).Any())
+                    {
+                        Directory.Delete(outputDir);
+                    }
+                }
+                catch
+                {
+                    // best-effort cleanup
+                }
             }
         }
     }
