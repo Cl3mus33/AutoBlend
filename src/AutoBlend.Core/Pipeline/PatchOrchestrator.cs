@@ -112,13 +112,16 @@ public sealed class PatchOrchestrator
                 + "scan its own previous output as if it were a real mod, producing incorrect results.");
         }
 
-        // texconv.exe ships next to AutoBlend.Core.dll itself (AppContext.BaseDirectory) so this
-        // resolves the same way regardless of which shell (native or WPF) is hosting this run -
-        // see native/AutoBlend/CMakeLists.txt's texconv copy step for the native side.
+        // texconv.exe ships next to AutoBlend.Core.dll itself - see native/AutoBlend/CMakeLists.txt's
+        // texconv copy step for the native side. Anchored on this assembly's own physical file
+        // location rather than AppContext.BaseDirectory: when this DLL is hosted in-process inside
+        // the native (DNNE) shell, BaseDirectory isn't guaranteed to be AutoBlend_dotnetlib\ - the
+        // assembly's own Location always is, regardless of which shell is hosting it.
         MissingTextureGenerator? textureGenerator = null;
         if (_settings.AutoGenerateMissingStatics)
         {
-            var texconvPath = Path.Combine(AppContext.BaseDirectory, "texconv.exe");
+            var assemblyDir = Path.GetDirectoryName(typeof(PatchOrchestrator).Assembly.Location);
+            var texconvPath = Path.Combine(!string.IsNullOrEmpty(assemblyDir) ? assemblyDir : AppContext.BaseDirectory, "texconv.exe");
             textureGenerator = new MissingTextureGenerator(fileProbe, _settings.OutputLocation, texconvPath);
         }
 
@@ -408,6 +411,13 @@ public sealed class PatchOrchestrator
         finally
         {
             TryDeleteDirectory(tempDir);
+        }
+
+        if (textureGenerator is not null)
+        {
+            Report($"Auto-generated {textureGenerator.GeneratedCount} missing statics/blending texture(s)"
+                + (textureGenerator.FailedCount > 0 ? $" ({textureGenerator.FailedCount} attempt(s) failed - see log)." : "."));
+            warnings.AddRange(textureGenerator.Diagnostics);
         }
 
         string? outputEspPath = null;
