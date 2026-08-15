@@ -74,6 +74,17 @@ First release.
   into Options), and the Auto-Generate Allowlist table moved into its own "Edit Allowlist..."
   dialog - both matching AutoSeasons' own launcher layout and keeping the main tab focused on
   per-run settings.
+- Sibling-folder detection is no longer restricted to `*/landscape/` texture paths - any diffuse
+  texture used by an alpha-tested Static/MoveableStatic shape is now checked for a `statics`,
+  `blending`, or `blend` sibling next to it, regardless of category (verified against a mine/cave
+  retexture's own `textures\dungeons\mines\statics\` folder). AutoBlend's own auto-generation now
+  writes into a dedicated `blend` folder instead of `statics`, so its synthesized output never
+  collides with either third-party-authored convention; both are still matched normally when
+  already present. Existing `settings.json` files are backfilled with the new rule automatically.
+- Auto-generated textures are now always recompressed to BC7, regardless of the winning source's
+  own format (previously mirrored it, which could produce BC1/BC3 output) - keeps every generated
+  texture on one consistent, modern format and avoids at least one third-party DDS viewer
+  misreading BC3's alpha channel.
 
 ### Performance
 - Full-pipeline runtime on a large real modlist (24,348 records, 14,265 meshes) dropped from
