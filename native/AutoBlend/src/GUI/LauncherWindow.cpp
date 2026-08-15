@@ -262,6 +262,9 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     // Normal. Off by default to keep the original vanilla-friendly behavior.
     m_generatePbrSlotsCheckbox = new wxCheckBox(body, wxID_ANY, ABTr("launcher.generatePbrSlots.label", "Generate PBR slots"));
     m_generatePbrSlotsCheckbox->SetValue(initParams.generatePbrSlots);
+    wxFont pbrCheckboxFont = m_generatePbrSlotsCheckbox->GetFont();
+    pbrCheckboxFont.SetPointSize(pbrCheckboxFont.GetPointSize() + 2);
+    m_generatePbrSlotsCheckbox->SetFont(pbrCheckboxFont);
     bodySizer->Add(m_generatePbrSlotsCheckbox, 0, wxALL, BORDER_SIZE);
 
     body->SetSizer(bodySizer);
