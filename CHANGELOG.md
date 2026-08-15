@@ -63,12 +63,13 @@ First release.
   assets packed into its own archive (e.g. Beyond Skyrim's `BSAssets.bsa`) was invisible entirely.
   Honors MO2's own priority order throughout, with loose always beating archived regardless of
   which mod either comes from, matching Skyrim's own engine behavior.
-- Optional "Generate PBR slots (Height/RMAOS)" checkbox: when a PBR texture pack is what's
-  actually winning in the load order for a given texture, a derived "statics" TextureSet can
-  carry that pack's own Height and RMAOS slots forward too, not just Diffuse/Normal - Skyrim's
-  4-slot PBR convention. Off by default (`GeneratePbrSlots` in settings.json), keeping the
-  original vanilla-friendly 2-slot behavior; PGPatcher still does its own separate mesh-level
-  PBR conversion pass either way.
+- Optional "Generate PBR slots (Height/RMAOS)" checkbox: when a PBR texture pack ships its own
+  variant of a texture (Skyrim PBR packs ship at a separate, parallel `textures\pbr\...`
+  location rather than overriding the vanilla path in place), a derived "statics" TextureSet
+  resolves and uses that pack's own Diffuse/Normal/Height/RMAOS - Skyrim's 4-slot PBR convention,
+  found via its own "_n"/"_p"/"_rmaos" naming convention - instead of the vanilla texture. Off by
+  default (`GeneratePbrSlots` in settings.json), keeping the original vanilla-friendly 2-slot
+  behavior; PGPatcher still does its own separate mesh-level PBR conversion pass either way.
 
 ### Performance
 - Full-pipeline runtime on a large real modlist (24,348 records, 14,265 meshes) dropped from
