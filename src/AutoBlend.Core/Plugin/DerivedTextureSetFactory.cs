@@ -1,4 +1,4 @@
-using AutoBlend.Core.Configuration;
+using AutoBlend.Core.Scanning;
 using Mutagen.Bethesda.Plugins.Assets;
 using Mutagen.Bethesda.Skyrim;
 using Mutagen.Bethesda.Skyrim.Assets;
@@ -7,34 +7,31 @@ namespace AutoBlend.Core.Plugin;
 
 /// <summary>
 /// Creates a new TXST record in the patch mod carrying the Diffuse (repointed to the detected
-/// statics/blending variant) and Normal/Gloss slots, plus - when <see cref="_generatePbrSlots"/>
-/// is set - Height and EnvironmentMaskOrSubsurfaceTint (RMAOS), Skyrim's 4-slot PBR convention
-/// (Diffuse/Normal/Height/RMAOS). The remaining slots (glow/detail, environment, multilayer,
-/// backlight/specular) are always left unset regardless. Copying the source's own slots forward
-/// bakes in whatever that specific winning source happened to carry - correct exactly when a PBR
-/// texture pack is what's actually winning in the load order for this texture, since then
-/// source's own Height/RMAOS already point at that pack's own PBR maps. With the flag off (the
-/// default), staying vanilla-friendly (2 slots only) leaves parallax/Complex Material/PBR
-/// entirely to a downstream run of a dedicated tool like PGPatcher, which decides per texture on
-/// its own terms.
+/// statics/blending variant) and Normal/Gloss slots, plus - whenever
+/// <see cref="LandscapeFolderDetection"/> resolved a PBR sibling for this texture (see
+/// LandscapeFolderDetector's own generatePbrSlots) - Height and EnvironmentMaskOrSubsurfaceTint
+/// (RMAOS), Skyrim's 4-slot PBR convention (Diffuse/Normal/Height/RMAOS). The remaining slots
+/// (glow/detail, environment, multilayer, backlight/specular) are always left unset. Detection
+/// already resolved whether a PBR sibling exists at all (and its own Normal/Height/RMAOS, per
+/// Skyrim's "_n"/"_p"/"_rmaos" suffix convention) - this factory just wires that data onto the
+/// TXST record, so its own PBR-fields being null is exactly "nothing to add" (PBR generation off,
+/// or no PBR sibling found for this specific texture) and needs no separate flag here.
 /// </summary>
 public sealed class DerivedTextureSetFactory
 {
     private readonly ISkyrimMod _patchMod;
     private readonly string _namingTemplate;
-    private readonly bool _generatePbrSlots;
 
-    public DerivedTextureSetFactory(ISkyrimMod patchMod, string namingTemplate, bool generatePbrSlots = false)
+    public DerivedTextureSetFactory(ISkyrimMod patchMod, string namingTemplate)
     {
         _patchMod = patchMod;
         _namingTemplate = namingTemplate;
-        _generatePbrSlots = generatePbrSlots;
     }
 
-    public TextureSet CreateDerived(SourceTexturePaths source, LandscapeFolderRule rule, string derivedDiffusePath)
+    public TextureSet CreateDerived(SourceTexturePaths source, LandscapeFolderDetection detection)
     {
         var derivedName = _namingTemplate
-            .Replace("{Type}", rule.TypeLabel)
+            .Replace("{Type}", detection.Rule.TypeLabel)
             .Replace("{Name}", source.SourceName);
 
         var derived = new TextureSet(_patchMod, derivedName)
@@ -42,15 +39,11 @@ public sealed class DerivedTextureSetFactory
             // A freshly constructed TextureSet does not pre-populate its AssetLink slots - each
             // one must be assigned a new instance rather than mutated via .GivenPath on a
             // possibly-null existing reference.
-            Diffuse = new AssetLink<SkyrimTextureAssetType>(derivedDiffusePath),
-            NormalOrGloss = ToAssetLink(source.NormalOrGloss),
+            Diffuse = new AssetLink<SkyrimTextureAssetType>(detection.DerivedDiffusePath),
+            NormalOrGloss = ToAssetLink(detection.PbrNormalPath ?? source.NormalOrGloss),
+            Height = ToAssetLink(detection.PbrHeightPath),
+            EnvironmentMaskOrSubsurfaceTint = ToAssetLink(detection.PbrRmaosPath),
         };
-
-        if (_generatePbrSlots)
-        {
-            derived.Height = ToAssetLink(source.Height);
-            derived.EnvironmentMaskOrSubsurfaceTint = ToAssetLink(source.EnvironmentMaskOrSubsurfaceTint);
-        }
 
         _patchMod.TextureSets.Add(derived);
         return derived;

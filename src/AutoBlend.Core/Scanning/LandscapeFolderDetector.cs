@@ -2,7 +2,18 @@ using AutoBlend.Core.Configuration;
 
 namespace AutoBlend.Core.Scanning;
 
-public sealed record LandscapeFolderDetection(LandscapeFolderRule Rule, string DerivedDiffusePath);
+/// <summary>
+/// PbrNormalPath/PbrHeightPath/PbrRmaosPath are only ever set when generatePbrSlots was on for
+/// this detector AND the texture actually has a PBR sibling (see
+/// LandscapeFolderDetector.ResolvePbrSlots) - null otherwise, meaning "nothing to add", exactly
+/// like every other unused TextureSet slot in this codebase.
+/// </summary>
+public sealed record LandscapeFolderDetection(
+    LandscapeFolderRule Rule,
+    string DerivedDiffusePath,
+    string? PbrNormalPath = null,
+    string? PbrHeightPath = null,
+    string? PbrRmaosPath = null);
 
 /// <summary>
 /// For a vanilla diffuse texture path such as "textures\landscape\dirt02.dds" or
@@ -15,6 +26,7 @@ public sealed class LandscapeFolderDetector
 {
     private const string LandscapeSegment = "landscape";
     private const string TexturesSegment = "textures";
+    private const string PbrSegment = "pbr";
 
     // Auto-generation is only ever attempted for the "statics" folder - alpha-stripping a diffuse
     // to opaque (see MissingTextureGenerator) is what makes a "statics" sibling, so applying that
@@ -27,6 +39,7 @@ public sealed class LandscapeFolderDetector
     private readonly IGameFileProbe _fileProbe;
     private readonly MissingTextureGenerator? _textureGenerator;
     private readonly IReadOnlyList<string> _autoGenerateAllowlist;
+    private readonly bool _generatePbrSlots;
 
     // Detect() is a pure function of diffusePath given this detector's own immutable rule/allowlist
     // config plus fileProbe/textureGenerator state that only ever monotonically "improves" within a
@@ -53,18 +66,33 @@ public sealed class LandscapeFolderDetector
     /// Wildcard patterns gating which source diffuse paths <paramref name="textureGenerator"/> is
     /// allowed to run for - every landscape texture with an alpha-blended shape is structurally
     /// "eligible", but not every one is something a statics variant actually makes sense for, so
-    /// generation is opt-in per texture rather than blanket-covering anything eligible.
+    /// generation is opt-in per texture rather than blanket-covering anything eligible. Matched
+    /// against the texture's own vanilla identity, never its PBR-swapped path (see
+    /// <paramref name="generatePbrSlots"/>) - so existing vanilla-path allowlist entries keep
+    /// working unchanged regardless of whether a PBR sibling ends up being used underneath.
+    /// </param>
+    /// <param name="generatePbrSlots">
+    /// When true, every texture this detects first checks whether a PBR sibling exists at the same
+    /// relative path with "pbr\" inserted after "textures\" (e.g. "textures\landscape\dirt02.dds"
+    /// -> "textures\pbr\landscape\dirt02.dds") - Skyrim PBR texture packs ship at this separate,
+    /// parallel location rather than overriding the vanilla path in place, so simply resolving
+    /// "whatever wins" never finds them. When a PBR sibling exists, it becomes the effective
+    /// diffuse for every file operation below (statics existence/generation), and its own
+    /// Normal/Height/RMAOS siblings (Skyrim's own "_n"/"_p"/"_rmaos" suffix convention) are
+    /// resolved and surfaced on the returned <see cref="LandscapeFolderDetection"/>.
     /// </param>
     public LandscapeFolderDetector(
         IReadOnlyList<LandscapeFolderRule> rules,
         IGameFileProbe fileProbe,
         MissingTextureGenerator? textureGenerator = null,
-        IReadOnlyList<string>? autoGenerateAllowlist = null)
+        IReadOnlyList<string>? autoGenerateAllowlist = null,
+        bool generatePbrSlots = false)
     {
         _rules = rules;
         _fileProbe = fileProbe;
         _textureGenerator = textureGenerator;
         _autoGenerateAllowlist = autoGenerateAllowlist ?? Array.Empty<string>();
+        _generatePbrSlots = generatePbrSlots;
     }
 
     /// <summary>
@@ -97,13 +125,31 @@ public sealed class LandscapeFolderDetector
     private LandscapeFolderDetection? DetectCore(string diffusePath)
     {
         var vanillaDiffusePath = diffusePath.TrimStart('\\', '/');
-        var segments = vanillaDiffusePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length == 0 || !segments[0].Equals(TexturesSegment, StringComparison.OrdinalIgnoreCase))
+        var vanillaSegments = vanillaDiffusePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (vanillaSegments.Length == 0 || !vanillaSegments[0].Equals(TexturesSegment, StringComparison.OrdinalIgnoreCase))
         {
             vanillaDiffusePath = TexturesSegment + "\\" + vanillaDiffusePath;
         }
 
-        segments = vanillaDiffusePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        // If a PBR sibling exists, every file operation below (statics exists/generate) operates
+        // on IT instead - vanillaDiffusePath itself is kept unchanged and still used for allowlist
+        // matching below, so a texture's identity for allowlist purposes never depends on whether a
+        // PBR pack happens to be installed.
+        var effectiveDiffusePath = vanillaDiffusePath;
+        string? pbrNormalPath = null;
+        string? pbrHeightPath = null;
+        string? pbrRmaosPath = null;
+        if (_generatePbrSlots)
+        {
+            var pbrCandidate = ToPbrPath(vanillaDiffusePath);
+            if (pbrCandidate is not null && _fileProbe.Exists(pbrCandidate))
+            {
+                effectiveDiffusePath = pbrCandidate;
+                (pbrNormalPath, pbrHeightPath, pbrRmaosPath) = ResolvePbrSlots(pbrCandidate);
+            }
+        }
+
+        var segments = effectiveDiffusePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
         var landscapeIndex = Array.FindIndex(segments, s => s.Equals(LandscapeSegment, StringComparison.OrdinalIgnoreCase));
         if (landscapeIndex < 0 || landscapeIndex == segments.Length - 1)
         {
@@ -119,7 +165,7 @@ public sealed class LandscapeFolderDetector
             var immediateRule = _rules.FirstOrDefault(r => segments[landscapeIndex + 1].Equals(r.FolderName, StringComparison.OrdinalIgnoreCase));
             if (immediateRule is not null)
             {
-                return new LandscapeFolderDetection(immediateRule, vanillaDiffusePath);
+                return new LandscapeFolderDetection(immediateRule, effectiveDiffusePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
             }
         }
 
@@ -131,26 +177,72 @@ public sealed class LandscapeFolderDetector
 
             if (_fileProbe.Exists(candidatePath))
             {
-                return new LandscapeFolderDetection(rule, candidatePath);
+                return new LandscapeFolderDetection(rule, candidatePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
             }
 
             // Nothing already provides this sibling - synthesize one from whatever diffuse is
-            // actually winning in the load order, so a mod author never has to hand-author it (see
-            // MissingTextureGenerator's own doc comment for why this is safe: verified to reproduce
-            // Vanaheimr's own hand-authored statics textures almost pixel-for-pixel). Only for
-            // "statics" (see GeneratableFolderName above) and only for textures explicitly listed in
+            // actually winning in the load order (or its PBR sibling, see effectiveDiffusePath
+            // above), so a mod author never has to hand-author it (see MissingTextureGenerator's
+            // own doc comment for why this is safe: verified to reproduce Vanaheimr's own
+            // hand-authored statics textures almost pixel-for-pixel). Only for "statics" (see
+            // GeneratableFolderName above) and only for textures explicitly listed in
             // AutoGenerateAllowlist - every landscape texture with an alpha-blended shape is
             // structurally "eligible" here, but generating for all of them indiscriminately produced
             // far more textures than intended (including ones with no real source, or ones a statics
             // variant doesn't actually make sense for), so this is opt-in per texture, not blanket.
             var canGenerate = rule.FolderName.Equals(GeneratableFolderName, StringComparison.OrdinalIgnoreCase)
                 && WildcardMatcher.MatchesAny(vanillaDiffusePath, _autoGenerateAllowlist);
-            if (canGenerate && _textureGenerator is not null && _textureGenerator.TryGenerate(vanillaDiffusePath, candidatePath, out _))
+            if (canGenerate && _textureGenerator is not null && _textureGenerator.TryGenerate(effectiveDiffusePath, candidatePath, out _))
             {
-                return new LandscapeFolderDetection(rule, candidatePath);
+                return new LandscapeFolderDetection(rule, candidatePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Inserts "pbr" as the segment right after "textures" - e.g.
+    /// "textures\landscape\dirt02.dds" -> "textures\pbr\landscape\dirt02.dds" - matching where PBR
+    /// texture packs (e.g. Vanaheimr's PBR variants) actually ship their own content: a separate,
+    /// parallel location, not an in-place override of the vanilla path. Returns null if the path is
+    /// already pbr-prefixed (nothing to swap) or too short to have a second segment.
+    /// </summary>
+    private static string? ToPbrPath(string texturesPrefixedPath)
+    {
+        var segments = texturesPrefixedPath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length < 2 || segments[1].Equals(PbrSegment, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var pbrSegments = new List<string>(segments.Length + 1) { segments[0], PbrSegment };
+        pbrSegments.AddRange(segments.Skip(1));
+        return string.Join('\\', pbrSegments);
+    }
+
+    /// <summary>
+    /// Skyrim's PBR naming convention: Normal/Height/RMAOS live next to the diffuse, sharing its
+    /// exact basename with a fixed suffix ("_n"/"_p"/"_rmaos") before the extension - verified
+    /// directly against a real PBR texture pack's own files (e.g. "dirt02.dds" + "dirt02_n.dds" +
+    /// "dirt02_p.dds" + "dirt02_rmaos.dds", all in the same folder). A "statics" sibling only ever
+    /// carries its own diffuse - it shares this same parent's Normal/Height/RMAOS - so this always
+    /// resolves against the PARENT (non-statics) pbr diffuse path, never the derived statics one.
+    /// Each slot is only included if that specific file actually exists; not every PBR texture
+    /// ships all three maps.
+    /// </summary>
+    private (string? Normal, string? Height, string? Rmaos) ResolvePbrSlots(string pbrDiffusePath)
+    {
+        var dir = Path.GetDirectoryName(pbrDiffusePath) ?? string.Empty;
+        var stem = Path.GetFileNameWithoutExtension(pbrDiffusePath);
+        var ext = Path.GetExtension(pbrDiffusePath);
+
+        string? Resolve(string suffix)
+        {
+            var candidate = Path.Combine(dir, stem + suffix + ext);
+            return _fileProbe.Exists(candidate) ? candidate : null;
+        }
+
+        return (Resolve("_n"), Resolve("_p"), Resolve("_rmaos"));
     }
 }

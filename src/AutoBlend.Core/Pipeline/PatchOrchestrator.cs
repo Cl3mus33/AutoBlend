@@ -118,7 +118,8 @@ public sealed class PatchOrchestrator
             textureGenerator = new MissingTextureGenerator(fileProbe, _settings.OutputLocation);
         }
 
-        var folderDetector = new LandscapeFolderDetector(_settings.LandscapeFolderRules, fileProbe, textureGenerator, _settings.AutoGenerateAllowlist);
+        var folderDetector = new LandscapeFolderDetector(
+            _settings.LandscapeFolderRules, fileProbe, textureGenerator, _settings.AutoGenerateAllowlist, _settings.GeneratePbrSlots);
         var blacklist = new BlacklistEvaluator(_settings);
 
         // Runs before any mesh/record scanning, as its own explicit phase: the allowlist is a
@@ -138,7 +139,7 @@ public sealed class PatchOrchestrator
         }
 
         var patchMod = new SkyrimMod(new ModKey(PatchModName, ModType.Plugin), skyrimRelease);
-        var txstFactory = new DerivedTextureSetFactory(patchMod, _settings.TextureSetNamingTemplate, _settings.GeneratePbrSlots);
+        var txstFactory = new DerivedTextureSetFactory(patchMod, _settings.TextureSetNamingTemplate);
         var derivedTxstCache = new Dictionary<string, TextureSet>(StringComparer.OrdinalIgnoreCase);
 
         Report("Scanning Static and MoveableStatic records...");
@@ -414,7 +415,7 @@ public sealed class PatchOrchestrator
                             var cacheKey = $"{t.Detection!.Rule.FolderName}|{t.Source!.SourceName}";
                             if (!derivedTxstCache.TryGetValue(cacheKey, out var derivedTxst))
                             {
-                                derivedTxst = txstFactory.CreateDerived(t.Source, t.Detection.Rule, t.Detection.DerivedDiffusePath);
+                                derivedTxst = txstFactory.CreateDerived(t.Source!, t.Detection!);
                                 derivedTxstCache[cacheKey] = derivedTxst;
                             }
 
