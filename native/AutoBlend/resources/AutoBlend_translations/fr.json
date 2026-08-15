@@ -51,6 +51,10 @@
     "generatePbrSlots": {
       "label": "Générer les slots PBR"
     },
+    "tab": {
+      "general": "Général",
+      "options": "Options"
+    },
     "language": {
       "label": "Langue"
     },

@@ -4,6 +4,7 @@
 #include "GUI/components/PGCustomListctrlChangedEvent.hpp"
 #include "util/StringUtil.hpp"
 
+#include <wx/notebook.h>
 #include <wx/statline.h>
 
 using namespace std;
@@ -55,142 +56,104 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     headerPanel->SetSizerAndFit(headerSizer);
     mainSizer->Add(headerPanel, 0, wxEXPAND);
 
-    auto* body = new wxPanel(this);
-    auto* bodySizer = new wxBoxSizer(wxVERTICAL);
+    auto* notebook = new wxNotebook(this, wxID_ANY);
 
-    auto* introText = new wxStaticText(body, wxID_ANY,
+    // "General" tab - the actual per-run settings (game/output locations, blacklists), same split
+    // AutoSeasons uses between per-run settings and app-wide preferences.
+    auto* generalPanel = new wxPanel(notebook);
+    auto* generalSizer = new wxBoxSizer(wxVERTICAL);
+
+    auto* introText = new wxStaticText(generalPanel, wxID_ANY,
         ABTr("launcher.intro",
             "Scans your load order for landscape texture variants (statics/blending subfolders "
             "under */landscape/) and patches matching meshes to alpha-blend instead of alpha-test, "
             "generating a dedicated output plugin with the derived texture sets."));
     introText->Wrap(530);
-    bodySizer->Add(introText, 0, wxALL, BORDER_SIZE * 2);
+    generalSizer->Add(introText, 0, wxALL, BORDER_SIZE * 2);
 
     // Config profile - a single install (e.g. shared outside any one modlist) can still keep
     // distinct settings per use case by saving/loading separate JSON files here, instead of
     // relying on %APPDATA%\AutoBlend\settings.json (which only isolates settings when each modlist
     // gets its own copy of the exe). Mirrors PGPatcher's/AutoSeasons' own Load/Save Config pattern.
-    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.configProfile.label", "Config Profile")), 0,
+    generalSizer->Add(makeSectionLabel(generalPanel, ABTr("launcher.configProfile.label", "Config Profile")), 0,
         wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
 
-    auto* loadConfigButton = new wxButton(body, wxID_ANY, ABTr("launcher.configProfile.load", "Load Config..."));
+    auto* loadConfigButton = new wxButton(generalPanel, wxID_ANY, ABTr("launcher.configProfile.load", "Load Config..."));
     loadConfigButton->Bind(wxEVT_BUTTON, &LauncherWindow::onLoadConfig, this);
-    auto* saveConfigButton = new wxButton(body, wxID_ANY, ABTr("launcher.configProfile.saveAs", "Save Config As..."));
+    auto* saveConfigButton = new wxButton(generalPanel, wxID_ANY, ABTr("launcher.configProfile.saveAs", "Save Config As..."));
     saveConfigButton->Bind(wxEVT_BUTTON, &LauncherWindow::onSaveConfigAs, this);
 
     auto* configProfileSizer = new wxBoxSizer(wxHORIZONTAL);
     configProfileSizer->Add(loadConfigButton, 0, wxALL, BORDER_SIZE);
     configProfileSizer->Add(saveConfigButton, 0, wxALL, BORDER_SIZE);
-    bodySizer->Add(configProfileSizer, 0);
-
-    // Language selector - changing it immediately relaunches the window (see onLanguageChanged)
-    // rather than requiring a separate settings dialog/OK click, since this launcher is small
-    // enough that a full rebuild is cheap and this keeps the UX to a single click.
-    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.language.label", "Language")), 0,
-        wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
-
-    m_languages = ABLocale::getAvailableLanguages();
-    wxArrayString languageChoices;
-    int selectedLanguageIndex = 0;
-    for (size_t i = 0; i < m_languages.size(); i++) {
-        languageChoices.Add(m_languages.at(i).displayName);
-        if (m_languages.at(i).code == ABLocale::getCurrentLanguage()) {
-            selectedLanguageIndex = static_cast<int>(i);
-        }
-    }
-    m_languageChoice = new wxChoice(body, wxID_ANY, wxDefaultPosition, wxDefaultSize, languageChoices);
-    if (!m_languages.empty()) {
-        m_languageChoice->SetSelection(selectedLanguageIndex);
-    }
-    m_languageChoice->Bind(wxEVT_CHOICE, &LauncherWindow::onLanguageChanged, this);
-    bodySizer->Add(m_languageChoice, 0, wxEXPAND | wxALL, BORDER_SIZE);
-
-    // Theme selector - same immediate-relaunch pattern as the language selector, since applying a
-    // wxWidgets appearance change requires it to be set before the window it affects is created.
-    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.theme.label", "Theme")), 0,
-        wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
-
-    wxArrayString themeChoices;
-    themeChoices.Add(ABTr("launcher.theme.system", "System"));
-    themeChoices.Add(ABTr("launcher.theme.light", "Light"));
-    themeChoices.Add(ABTr("launcher.theme.dark", "Dark"));
-    m_themeChoice = new wxChoice(body, wxID_ANY, wxDefaultPosition, wxDefaultSize, themeChoices);
-    int selectedThemeIndex = 0;
-    if (initParams.uiTheme == "light") {
-        selectedThemeIndex = 1;
-    } else if (initParams.uiTheme == "dark") {
-        selectedThemeIndex = 2;
-    }
-    m_themeChoice->SetSelection(selectedThemeIndex);
-    m_themeChoice->Bind(wxEVT_CHOICE, &LauncherWindow::onThemeChanged, this);
-    bodySizer->Add(m_themeChoice, 0, wxEXPAND | wxALL, BORDER_SIZE);
+    generalSizer->Add(configProfileSizer, 0);
 
     // Game location
-    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.gameLocation.label", "Game Location")), 0,
+    generalSizer->Add(makeSectionLabel(generalPanel, ABTr("launcher.gameLocation.label", "Game Location")), 0,
         wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
 
-    m_gameLocationTextbox = new wxTextCtrl(body, wxID_ANY, initParams.gameLocation);
-    auto* gameBrowseButton = new wxButton(body, wxID_ANY, ABTr("common.browse", "Browse"));
+    m_gameLocationTextbox = new wxTextCtrl(generalPanel, wxID_ANY, initParams.gameLocation);
+    auto* gameBrowseButton = new wxButton(generalPanel, wxID_ANY, ABTr("common.browse", "Browse"));
     gameBrowseButton->Bind(wxEVT_BUTTON, &LauncherWindow::onBrowseGameLocation, this);
 
     auto* gameLocationSizer = new wxBoxSizer(wxHORIZONTAL);
     gameLocationSizer->Add(m_gameLocationTextbox, 1, wxEXPAND | wxALL, BORDER_SIZE);
     gameLocationSizer->Add(gameBrowseButton, 0, wxALL, BORDER_SIZE);
-    bodySizer->Add(gameLocationSizer, 0, wxEXPAND);
+    generalSizer->Add(gameLocationSizer, 0, wxEXPAND);
 
     // Output location
-    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.outputLocation.label", "Output Location")), 0,
+    generalSizer->Add(makeSectionLabel(generalPanel, ABTr("launcher.outputLocation.label", "Output Location")), 0,
         wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
 
-    m_outputLocationTextbox = new wxTextCtrl(body, wxID_ANY, initParams.outputLocation);
-    auto* outputBrowseButton = new wxButton(body, wxID_ANY, ABTr("common.browse", "Browse"));
+    m_outputLocationTextbox = new wxTextCtrl(generalPanel, wxID_ANY, initParams.outputLocation);
+    auto* outputBrowseButton = new wxButton(generalPanel, wxID_ANY, ABTr("common.browse", "Browse"));
     outputBrowseButton->Bind(wxEVT_BUTTON, &LauncherWindow::onBrowseOutputLocation, this);
 
     auto* outputLocationSizer = new wxBoxSizer(wxHORIZONTAL);
     outputLocationSizer->Add(m_outputLocationTextbox, 1, wxEXPAND | wxALL, BORDER_SIZE);
     outputLocationSizer->Add(outputBrowseButton, 0, wxALL, BORDER_SIZE);
-    bodySizer->Add(outputLocationSizer, 0, wxEXPAND);
+    generalSizer->Add(outputLocationSizer, 0, wxEXPAND);
 
     // Mod manager
-    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.modManager.label", "Mod Manager")), 0,
+    generalSizer->Add(makeSectionLabel(generalPanel, ABTr("launcher.modManager.label", "Mod Manager")), 0,
         wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
 
     wxArrayString modManagerChoices;
     modManagerChoices.Add(ABTr("launcher.modManager.none", "None / Vortex"));
     modManagerChoices.Add(ABTr("launcher.modManager.mo2", "Mod Organizer 2"));
-    m_modManagerChoice = new wxChoice(body, wxID_ANY, wxDefaultPosition, wxDefaultSize, modManagerChoices);
+    m_modManagerChoice = new wxChoice(generalPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize, modManagerChoices);
     m_modManagerChoice->SetSelection(initParams.modManager == ABModManagerType::MOD_ORGANIZER_2 ? 1 : 0);
     m_modManagerChoice->Bind(wxEVT_CHOICE, &LauncherWindow::onModManagerChanged, this);
-    bodySizer->Add(m_modManagerChoice, 0, wxEXPAND | wxALL, BORDER_SIZE);
+    generalSizer->Add(m_modManagerChoice, 0, wxEXPAND | wxALL, BORDER_SIZE);
 
     // MO2 instance path - always present (rather than appearing/disappearing with the mod manager
     // choice above), just enabled/disabled: an earlier revision toggled its visibility and users
     // didn't notice the window needed to grow to show it. Always reserving the space avoids that.
-    m_mo2InstancePathLabel = makeSectionLabel(body, ABTr("launcher.mo2InstancePath.label", "MO2 Instance Path"));
-    bodySizer->Add(m_mo2InstancePathLabel, 0, wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
+    m_mo2InstancePathLabel = makeSectionLabel(generalPanel, ABTr("launcher.mo2InstancePath.label", "MO2 Instance Path"));
+    generalSizer->Add(m_mo2InstancePathLabel, 0, wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
 
-    m_mo2InstancePathTextbox = new wxTextCtrl(body, wxID_ANY, initParams.mo2InstancePath);
-    m_mo2InstanceBrowseButton = new wxButton(body, wxID_ANY, ABTr("common.browse", "Browse"));
+    m_mo2InstancePathTextbox = new wxTextCtrl(generalPanel, wxID_ANY, initParams.mo2InstancePath);
+    m_mo2InstanceBrowseButton = new wxButton(generalPanel, wxID_ANY, ABTr("common.browse", "Browse"));
     m_mo2InstanceBrowseButton->Bind(wxEVT_BUTTON, &LauncherWindow::onBrowseMo2Instance, this);
 
     auto* mo2InstanceSizer = new wxBoxSizer(wxHORIZONTAL);
     mo2InstanceSizer->Add(m_mo2InstancePathTextbox, 1, wxEXPAND | wxALL, BORDER_SIZE);
     mo2InstanceSizer->Add(m_mo2InstanceBrowseButton, 0, wxALL, BORDER_SIZE);
-    bodySizer->Add(mo2InstanceSizer, 0, wxEXPAND);
+    generalSizer->Add(mo2InstanceSizer, 0, wxEXPAND);
 
     // Mesh blacklist - inline editable table, same pattern as AutoSeasons' own blocklist.
-    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.meshBlacklist.label", "Mesh Blacklist")), 0,
+    generalSizer->Add(makeSectionLabel(generalPanel, ABTr("launcher.meshBlacklist.label", "Mesh Blacklist")), 0,
         wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
 
-    auto* meshBlacklistHelpText = new wxStaticText(body, wxID_ANY,
+    auto* meshBlacklistHelpText = new wxStaticText(generalPanel, wxID_ANY,
         ABTr("launcher.meshBlacklist.help",
             "Meshes matching a rule here are never patched. Wildcards (*) allowed, e.g. \"*\\glass\\*\". "
             "Right click to add/remove rows."));
     meshBlacklistHelpText->Wrap(560);
-    bodySizer->Add(meshBlacklistHelpText, 0, wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
+    generalSizer->Add(meshBlacklistHelpText, 0, wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
 
     m_meshBlacklistCtrl = new PGModifiableListCtrl(
-        body, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_EDIT_LABELS | wxLC_NO_HEADER);
+        generalPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_EDIT_LABELS | wxLC_NO_HEADER);
     m_meshBlacklistCtrl->AppendColumn(ABTr("launcher.meshBlacklist.column", "Rule"), wxLIST_FORMAT_LEFT, wxLIST_AUTOSIZE_USEHEADER);
     m_meshBlacklistCtrl->SetColumnWidth(0, wxLIST_AUTOSIZE_USEHEADER);
 
@@ -200,21 +163,21 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     }
     m_meshBlacklistCtrl->InsertItem(m_meshBlacklistCtrl->GetItemCount(), "");
 
-    bodySizer->Add(m_meshBlacklistCtrl, 1, wxEXPAND | wxALL, BORDER_SIZE);
+    generalSizer->Add(m_meshBlacklistCtrl, 1, wxEXPAND | wxALL, BORDER_SIZE);
 
     // Season-locked... no - EditorID blacklist keywords, same inline editable table pattern.
-    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.editorIdKeywords.label", "EditorID Blacklist Keywords")), 0,
+    generalSizer->Add(makeSectionLabel(generalPanel, ABTr("launcher.editorIdKeywords.label", "EditorID Blacklist Keywords")), 0,
         wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
 
-    auto* editorIdKeywordsHelpText = new wxStaticText(body, wxID_ANY,
+    auto* editorIdKeywordsHelpText = new wxStaticText(generalPanel, wxID_ANY,
         ABTr("launcher.editorIdKeywords.help",
             "Records whose EditorID contains one of these words (case-insensitive) are skipped entirely - "
             "useful where alpha testing is intentional (e.g. \"ice\", \"glass\"). Right click to add/remove rows."));
     editorIdKeywordsHelpText->Wrap(560);
-    bodySizer->Add(editorIdKeywordsHelpText, 0, wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
+    generalSizer->Add(editorIdKeywordsHelpText, 0, wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
 
     m_editorIdKeywordsCtrl = new PGModifiableListCtrl(
-        body, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_EDIT_LABELS | wxLC_NO_HEADER);
+        generalPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_EDIT_LABELS | wxLC_NO_HEADER);
     m_editorIdKeywordsCtrl->AppendColumn(
         ABTr("launcher.editorIdKeywords.column", "Keyword"), wxLIST_FORMAT_LEFT, wxLIST_AUTOSIZE_USEHEADER);
     m_editorIdKeywordsCtrl->SetColumnWidth(0, wxLIST_AUTOSIZE_USEHEADER);
@@ -225,7 +188,7 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     }
     m_editorIdKeywordsCtrl->InsertItem(m_editorIdKeywordsCtrl->GetItemCount(), "");
 
-    bodySizer->Add(m_editorIdKeywordsCtrl, 1, wxEXPAND | wxALL, BORDER_SIZE);
+    generalSizer->Add(m_editorIdKeywordsCtrl, 1, wxEXPAND | wxALL, BORDER_SIZE);
 
     // Auto-generate allowlist - which source diffuse textures are allowed to get a synthesized
     // statics sibling (see AutoBlend.Core.Scanning.MissingTextureGenerator). Every landscape texture
@@ -234,16 +197,17 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     // above it. Same label + button pattern as Config Profile above: this table is long (dozens of
     // rows) and rarely needs editing, so it lives in its own dialog behind an "Edit Allowlist..."
     // button instead of always being visible inline.
-    bodySizer->Add(makeSectionLabel(body, ABTr("launcher.autoGenerateAllowlist.label", "Auto-Generate Allowlist")), 0,
+    generalSizer->Add(makeSectionLabel(generalPanel, ABTr("launcher.autoGenerateAllowlist.label", "Auto-Generate Allowlist")), 0,
         wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
 
-    auto* editAllowlistButton = new wxButton(body, wxID_ANY, ABTr("launcher.autoGenerateAllowlist.editButton", "Edit Allowlist..."));
+    auto* editAllowlistButton = new wxButton(generalPanel, wxID_ANY, ABTr("launcher.autoGenerateAllowlist.editButton", "Edit Allowlist..."));
     editAllowlistButton->Bind(wxEVT_BUTTON, &LauncherWindow::onEditAllowlistButtonPressed, this);
-    bodySizer->Add(editAllowlistButton, 0, wxALL, BORDER_SIZE);
+    generalSizer->Add(editAllowlistButton, 0, wxALL, BORDER_SIZE);
 
     // Built once here (not recreated per click) so edits persist across repeated opens within this
     // LauncherWindow's lifetime, exactly like every other field - onEditAllowlistButtonPressed just
-    // shows/hides this same dialog instance.
+    // shows/hides this same dialog instance. Parented to `this` (not generalPanel/the notebook)
+    // since it's a top-level popup, not part of the tabbed layout.
     m_autoGenerateAllowlistDialog = new wxDialog(this, wxID_ANY, ABTr("launcher.autoGenerateAllowlist.label", "Auto-Generate Allowlist"),
         wxDefaultPosition, wxSize(520, 520), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER);
     auto* allowlistDialogSizer = new wxBoxSizer(wxVERTICAL);
@@ -284,15 +248,67 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     // PBR slots - when the winning source for an auto-generated statics texture is itself from a
     // PBR pack, carry its Height/RMAOS slots into the derived TextureSet too, not just Diffuse/
     // Normal. Off by default to keep the original vanilla-friendly behavior.
-    m_generatePbrSlotsCheckbox = new wxCheckBox(body, wxID_ANY, ABTr("launcher.generatePbrSlots.label", "Generate PBR slots"));
+    m_generatePbrSlotsCheckbox = new wxCheckBox(generalPanel, wxID_ANY, ABTr("launcher.generatePbrSlots.label", "Generate PBR slots"));
     m_generatePbrSlotsCheckbox->SetValue(initParams.generatePbrSlots);
     wxFont pbrCheckboxFont = m_generatePbrSlotsCheckbox->GetFont();
     pbrCheckboxFont.SetPointSize(pbrCheckboxFont.GetPointSize() + 2);
     m_generatePbrSlotsCheckbox->SetFont(pbrCheckboxFont);
-    bodySizer->Add(m_generatePbrSlotsCheckbox, 0, wxALL, BORDER_SIZE);
+    generalSizer->Add(m_generatePbrSlotsCheckbox, 0, wxALL, BORDER_SIZE);
 
-    body->SetSizer(bodySizer);
-    mainSizer->Add(body, 1, wxEXPAND | wxALL, BORDER_SIZE);
+    generalPanel->SetSizer(generalSizer);
+    notebook->AddPage(generalPanel, ABTr("launcher.tab.general", "General"));
+
+    // "Options" tab - app-wide preferences (language, theme) rather than per-run settings, same
+    // split AutoSeasons uses.
+    auto* optionsPanel = new wxPanel(notebook);
+    auto* optionsSizer = new wxBoxSizer(wxVERTICAL);
+
+    // Language selector - changing it immediately relaunches the window (see onLanguageChanged)
+    // rather than requiring a separate settings dialog/OK click, since this launcher is small
+    // enough that a full rebuild is cheap and this keeps the UX to a single click.
+    optionsSizer->Add(makeSectionLabel(optionsPanel, ABTr("launcher.language.label", "Language")), 0,
+        wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
+
+    m_languages = ABLocale::getAvailableLanguages();
+    wxArrayString languageChoices;
+    int selectedLanguageIndex = 0;
+    for (size_t i = 0; i < m_languages.size(); i++) {
+        languageChoices.Add(m_languages.at(i).displayName);
+        if (m_languages.at(i).code == ABLocale::getCurrentLanguage()) {
+            selectedLanguageIndex = static_cast<int>(i);
+        }
+    }
+    m_languageChoice = new wxChoice(optionsPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize, languageChoices);
+    if (!m_languages.empty()) {
+        m_languageChoice->SetSelection(selectedLanguageIndex);
+    }
+    m_languageChoice->Bind(wxEVT_CHOICE, &LauncherWindow::onLanguageChanged, this);
+    optionsSizer->Add(m_languageChoice, 0, wxEXPAND | wxALL, BORDER_SIZE);
+
+    // Theme selector - same immediate-relaunch pattern as the language selector, since applying a
+    // wxWidgets appearance change requires it to be set before the window it affects is created.
+    optionsSizer->Add(makeSectionLabel(optionsPanel, ABTr("launcher.theme.label", "Theme")), 0,
+        wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
+
+    wxArrayString themeChoices;
+    themeChoices.Add(ABTr("launcher.theme.system", "System"));
+    themeChoices.Add(ABTr("launcher.theme.light", "Light"));
+    themeChoices.Add(ABTr("launcher.theme.dark", "Dark"));
+    m_themeChoice = new wxChoice(optionsPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize, themeChoices);
+    int selectedThemeIndex = 0;
+    if (initParams.uiTheme == "light") {
+        selectedThemeIndex = 1;
+    } else if (initParams.uiTheme == "dark") {
+        selectedThemeIndex = 2;
+    }
+    m_themeChoice->SetSelection(selectedThemeIndex);
+    m_themeChoice->Bind(wxEVT_CHOICE, &LauncherWindow::onThemeChanged, this);
+    optionsSizer->Add(m_themeChoice, 0, wxEXPAND | wxALL, BORDER_SIZE);
+
+    optionsPanel->SetSizer(optionsSizer);
+    notebook->AddPage(optionsPanel, ABTr("launcher.tab.options", "Options"));
+
+    mainSizer->Add(notebook, 1, wxEXPAND | wxALL, BORDER_SIZE);
 
     Bind(wxEVT_SIZE, [this](wxSizeEvent& event) -> void {
         updateListColumnWidths();
