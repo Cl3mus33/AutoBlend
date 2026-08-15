@@ -19,6 +19,14 @@ public sealed class Mo2LoadOrderMaterializer
     // record - the vast majority of what a landscape-texture patcher cares about - would appear to
     // not exist at all, while records legitimately overriding it in mod plugins still "resolve" in
     // a way that looks superficially fine, making the gap easy to miss.
+    //
+    // _ResourcePack.esl is the same story: Anniversary Edition's shared asset container (rock/sand/
+    // landscape textures used by several cc* content packs, with EditorIDs like "RP_..."), force-
+    // loaded by the game engine itself and never listed in plugins.txt, same as the five above -
+    // confirmed missing here caused every Alternate Texture pointing at one of its own TextureSets
+    // to fail resolution ("Could not resolve existing TextureSet..." warnings) even though the
+    // referenced texture files themselves were found and auto-generated just fine, since file
+    // resolution and record resolution are entirely separate code paths.
     private static readonly string[] ImplicitBaseMasterFileNames =
     {
         "Skyrim.esm",
@@ -26,6 +34,7 @@ public sealed class Mo2LoadOrderMaterializer
         "Dawnguard.esm",
         "HearthFires.esm",
         "Dragonborn.esm",
+        "_ResourcePack.esl",
     };
 
     public sealed class MaterializedLoadOrder : IDisposable
