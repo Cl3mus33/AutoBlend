@@ -38,11 +38,17 @@ private:
     wxTimer m_pulseTimer;
     std::thread m_pollThread;
     std::atomic<bool> m_stopRequested { false };
+    std::wstring m_outputLocation;
 
     // Called from the poll thread via wxTheApp->CallAfter; applies one status snapshot to the UI.
     void applySnapshot(const wxString& status, int current, int total, bool isIndeterminate);
     void appendLog(const wxString& text);
-    void onWorkerFinished(bool success, const wxString& failureDetail);
+    // resultJson is the DNNE bridge's raw PatchRunResult JSON (PascalCase, see
+    // AutoBlend.Core.Pipeline.PatchRunResult) - empty if the run failed before producing one.
+    // Writes AutoBlend-log.txt into the output location (same filename/convention as the WPF
+    // shell's own MainViewModel.WriteLog) so a run's full warning list survives after this window
+    // closes, and appends the same summary to the in-app details log immediately.
+    void onWorkerFinished(bool success, const wxString& failureDetail, const std::string& resultJson);
     void onCloseButtonPressed(wxCommandEvent& event);
     void onDetailsPaneChanged(wxCollapsiblePaneEvent& event);
 };

@@ -190,7 +190,15 @@ public sealed class PatchOrchestrator
             foreach (var (meshPath, candidateFormKeys) in candidatesByMesh)
             {
                 meshCounter++;
-                Report($"Patching meshes... ({meshCounter}/{totalMeshes})", meshCounter, totalMeshes);
+                // Texture generation happens lazily inside folderDetector.Detect() below, as part
+                // of this same per-mesh pass - folding its running count into this same status line
+                // (rather than a separate phase) is what makes it visible during the run at all,
+                // since the native/WPF shells only ever surface Report()'s live Status text, not
+                // the final PatchRunResult, until the run completes.
+                var textureGenSuffix = textureGenerator is not null
+                    ? $" - {textureGenerator.GeneratedCount} texture(s) generated"
+                    : string.Empty;
+                Report($"Patching meshes... ({meshCounter}/{totalMeshes}){textureGenSuffix}", meshCounter, totalMeshes);
 
                 var plan = meshIndex.GetPlan(meshPath);
                 if (!plan.ShouldPatch)

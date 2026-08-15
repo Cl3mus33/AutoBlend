@@ -7,6 +7,8 @@
 #include <nlohmann/json.hpp>
 
 #include <chrono>
+#include <fstream>
+#include <sstream>
 
 using namespace std;
 
@@ -47,6 +49,7 @@ auto fromIntPtr(intptr_t ptr) -> string
 ProgressWindow::ProgressWindow(const ABParams& params, const filesystem::path& /*exePath*/)
     : wxDialog(nullptr, wxID_ANY, "AutoBlend", wxDefaultPosition, wxSize(420, 170), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
     , m_pulseTimer(this)
+    , m_outputLocation(params.outputLocation)
 {
     const wxIcon appIcon(wxICON(IDI_ICON1));
     SetIcon(appIcon);
@@ -112,6 +115,7 @@ ProgressWindow::ProgressWindow(const ABParams& params, const filesystem::path& /
         string lastStatus;
         bool success = true;
         wxString failureDetail;
+        string resultJson;
 
         while (!m_stopRequested.load()) {
             const intptr_t rawPtr = get_progress();
@@ -143,6 +147,7 @@ ProgressWindow::ProgressWindow(const ABParams& params, const filesystem::path& /
                 if (isDone) {
                     success = !isFailed;
                     failureDetail = wxString::FromUTF8(errorMessage);
+                    resultJson = readOptionalString(snapshot, "ResultJson");
                     break;
                 }
             } catch (const exception& e) {
@@ -156,7 +161,7 @@ ProgressWindow::ProgressWindow(const ABParams& params, const filesystem::path& /
             this_thread::sleep_for(chrono::milliseconds(POLL_INTERVAL_MS));
         }
 
-        wxTheApp->CallAfter([this, success, failureDetail]() -> void { onWorkerFinished(success, failureDetail); });
+        wxTheApp->CallAfter([this, success, failureDetail, resultJson]() -> void { onWorkerFinished(success, failureDetail, resultJson); });
     });
 }
 
@@ -193,7 +198,7 @@ void ProgressWindow::applySnapshot(const wxString& status, int current, int tota
     m_progressGauge->SetValue(pct);
 }
 
-void ProgressWindow::onWorkerFinished(bool success, const wxString& failureDetail)
+void ProgressWindow::onWorkerFinished(bool success, const wxString& failureDetail, const string& resultJson)
 {
     m_pulseTimer.Stop();
     m_progressGauge->SetValue(100);
@@ -202,7 +207,52 @@ void ProgressWindow::onWorkerFinished(bool success, const wxString& failureDetai
     m_closeButton->SetLabel(success ? ABTr("progress.doneClose", "Done - Close") : ABTr("progress.failedClose", "Failed - Close"));
     m_closeButton->Enable(true);
 
-    if (!success) {
+    // Mirrors the WPF shell's own MainViewModel.WriteLog: a plain-text AutoBlend-log.txt next to
+    // the generated output, plus the same summary appended to this window's own in-app log - a
+    // run's warnings (e.g. why a missing texture couldn't be auto-generated) previously vanished
+    // the moment this window closed, since only Status/IsFailed/ErrorMessage were ever read from
+    // the DNNE bridge's progress snapshot and ResultJson (which carries PatchRunResult.Warnings)
+    // was discarded entirely.
+    auto warningCount = 0;
+    if (!resultJson.empty()) {
+        try {
+            const auto result = nlohmann::json::parse(resultJson);
+            ostringstream summary;
+            summary << "\n=== Result ===\n";
+            summary << "Records scanned: " << result.value("RecordsScanned", 0) << "\n";
+            summary << "Meshes patched in place: " << result.value("MeshesPatchedInPlace", 0) << "\n";
+            summary << "Meshes duplicated (conflict): " << result.value("MeshesDuplicated", 0) << "\n";
+            summary << "TextureSets created: " << result.value("TextureSetsCreated", 0) << "\n";
+            summary << "Alternate Textures assigned: " << result.value("AlternateTexturesAssigned", 0) << "\n";
+            const auto outputEspPath = readOptionalString(result, "OutputEspPath");
+            summary << (outputEspPath.empty() ? "No plugin written (nothing in scope).\n" : "Plugin written: " + outputEspPath + "\n");
+
+            if (result.contains("Warnings") && result["Warnings"].is_array() && !result["Warnings"].empty()) {
+                warningCount = static_cast<int>(result["Warnings"].size());
+                summary << "\n" << warningCount << " warning(s):\n";
+                for (const auto& warning : result["Warnings"]) {
+                    summary << " - " << warning.get<string>() << "\n";
+                }
+            }
+
+            appendLog(wxString::FromUTF8(summary.str()));
+
+            if (!m_outputLocation.empty()) {
+                error_code ec;
+                const filesystem::path outputDir(m_outputLocation);
+                filesystem::create_directories(outputDir, ec);
+                ofstream logFile(outputDir / "AutoBlend-log.txt");
+                if (logFile.is_open()) {
+                    logFile << "AutoBlend run\n"
+                            << summary.str();
+                }
+            }
+        } catch (const exception& e) {
+            appendLog("\n[WARN] Failed to parse run result: " + wxString::FromUTF8(e.what()) + "\n");
+        }
+    }
+
+    if (!success || warningCount > 0) {
         if (!failureDetail.IsEmpty()) {
             appendLog("\n[ERROR] " + failureDetail + "\n");
         }
@@ -211,7 +261,9 @@ void ProgressWindow::onWorkerFinished(bool success, const wxString& failureDetai
         }
         Layout();
         GetSizer()->Fit(this);
-        return;
+        if (!success) {
+            return;
+        }
     }
 
     wxMessageBox(

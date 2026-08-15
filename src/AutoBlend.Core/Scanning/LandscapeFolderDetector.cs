@@ -16,6 +16,13 @@ public sealed class LandscapeFolderDetector
     private const string LandscapeSegment = "landscape";
     private const string TexturesSegment = "textures";
 
+    // Auto-generation is only ever attempted for the "statics" folder - alpha-stripping a diffuse
+    // to opaque (see MissingTextureGenerator) is what makes a "statics" sibling, so applying that
+    // same transform to synthesize a "blending" sibling would produce a mislabeled file (opaque,
+    // when a blending variant needs the real alpha gradient). A "blending" sibling can still be
+    // matched if one already exists on disk - it just never gets synthesized.
+    private const string GeneratableFolderName = "statics";
+
     private readonly IReadOnlyList<LandscapeFolderRule> _rules;
     private readonly IGameFileProbe _fileProbe;
     private readonly MissingTextureGenerator? _textureGenerator;
@@ -92,8 +99,10 @@ public sealed class LandscapeFolderDetector
             // Nothing already provides this sibling - synthesize one from whatever diffuse is
             // actually winning in the load order, so a mod author never has to hand-author it (see
             // MissingTextureGenerator's own doc comment for why this is safe: verified to reproduce
-            // Vanaheimr's own hand-authored statics textures almost pixel-for-pixel).
-            if (_textureGenerator is not null && _textureGenerator.TryGenerate(vanillaDiffusePath, candidatePath, out _))
+            // Vanaheimr's own hand-authored statics textures almost pixel-for-pixel). Only for
+            // "statics" - see GeneratableFolderName above.
+            var canGenerate = rule.FolderName.Equals(GeneratableFolderName, StringComparison.OrdinalIgnoreCase);
+            if (canGenerate && _textureGenerator is not null && _textureGenerator.TryGenerate(vanillaDiffusePath, candidatePath, out _))
             {
                 return new LandscapeFolderDetection(rule, candidatePath);
             }
