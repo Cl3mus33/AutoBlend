@@ -63,3 +63,12 @@ First release.
   assets packed into its own archive (e.g. Beyond Skyrim's `BSAssets.bsa`) was invisible entirely.
   Honors MO2's own priority order throughout, with loose always beating archived regardless of
   which mod either comes from, matching Skyrim's own engine behavior.
+
+### Performance
+- Full-pipeline runtime on a large real modlist (24,348 records, 14,265 meshes) dropped from
+  ~530s to ~113s (4.6x), with identical output. Two fixes: cached wildcard-pattern regexes and
+  per-texture sibling-detection results instead of recomputing them on every record/mesh scanned
+  (the dominant cost - measured at ~335s of pure waste on the same modlist), and GPU-accelerated
+  (DirectCompute) texture compression for the auto-generation feature above, ~8x faster than CPU
+  for the large landscape textures a real load order can resolve to, with an automatic CPU
+  fallback when no D3D11 device is available.
