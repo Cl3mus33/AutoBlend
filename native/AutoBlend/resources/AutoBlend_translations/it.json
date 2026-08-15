@@ -47,7 +47,7 @@
       "column": "Texture"
     },
     "generatePbrSlots": {
-      "label": "Genera slot PBR (Height/RMAOS)"
+      "label": "Genera slot PBR"
     },
     "language": {
       "label": "Lingua"

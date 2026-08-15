@@ -260,7 +260,7 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     // PBR slots - when the winning source for an auto-generated statics texture is itself from a
     // PBR pack, carry its Height/RMAOS slots into the derived TextureSet too, not just Diffuse/
     // Normal. Off by default to keep the original vanilla-friendly behavior.
-    m_generatePbrSlotsCheckbox = new wxCheckBox(body, wxID_ANY, ABTr("launcher.generatePbrSlots.label", "Generate PBR slots (Height/RMAOS)"));
+    m_generatePbrSlotsCheckbox = new wxCheckBox(body, wxID_ANY, ABTr("launcher.generatePbrSlots.label", "Generate PBR slots"));
     m_generatePbrSlotsCheckbox->SetValue(initParams.generatePbrSlots);
     bodySizer->Add(m_generatePbrSlotsCheckbox, 0, wxALL, BORDER_SIZE);
 
