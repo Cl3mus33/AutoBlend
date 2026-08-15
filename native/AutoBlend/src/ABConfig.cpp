@@ -96,6 +96,9 @@ auto ABConfig::loadFrom(const filesystem::path& configFilePath) -> ABParams
         if (configJ.contains("TextureSetNamingTemplate")) {
             params.textureSetNamingTemplate = StringUtil::utf8toUTF16(configJ["TextureSetNamingTemplate"].get<string>());
         }
+        if (configJ.contains("AutoGenerateMissingStatics")) {
+            params.autoGenerateMissingStatics = configJ["AutoGenerateMissingStatics"].get<bool>();
+        }
     } catch (const exception& e) {
         Logger::warn("Failed to parse settings file, using defaults: {}", e.what());
         return ABParams {};
@@ -136,6 +139,7 @@ auto ABConfig::toJson(const ABParams& params) -> nlohmann::json
     }
 
     configJ["TextureSetNamingTemplate"] = StringUtil::utf16toUTF8(params.textureSetNamingTemplate);
+    configJ["AutoGenerateMissingStatics"] = params.autoGenerateMissingStatics;
 
     return configJ;
 }

@@ -47,3 +47,11 @@ First release.
 - "Load Config..." / "Save Config As..." buttons, mirroring PGPatcher's/AutoSeasons' own pattern:
   one shared AutoBlend install (outside any one modlist) can keep separate settings per use case as
   saved JSON files, instead of needing a dedicated copy of the exe per modlist for isolation.
+- Synthesizes a missing statics/blending sibling texture on the fly (strips the alpha channel of
+  whatever diffuse is actually winning in the load order to opaque, via a bundled `texconv.exe`)
+  whenever nothing already provides one, so texture authors no longer need to hand-author these
+  siblings themselves. Verified to reproduce Vanaheimr's own hand-authored statics textures almost
+  pixel-for-pixel (identical RGB, only the alpha channel changes) - not an approximation. On this
+  project's own test modlist, this took coverage from 73 in-place-patched meshes/195 Alternate
+  Texture assignments to 239/1140. Enabled by default (`AutoGenerateMissingStatics` in
+  settings.json); silently has no effect if `texconv.exe` isn't present.

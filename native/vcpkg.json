@@ -5,6 +5,14 @@
       "version>=": "0.7.3"
     },
     {
+      "name": "directxtex",
+      "features": [
+        "tools"
+      ],
+      "default-features": false,
+      "version>=": "2026-05-07"
+    },
+    {
       "name": "nlohmann-json",
       "version>=": "3.11.3#1"
     },

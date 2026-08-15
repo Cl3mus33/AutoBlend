@@ -164,3 +164,23 @@ add_custom_command(
         "${CMAKE_BINARY_DIR}/bin/AutoBlend_translations"
     COMMENT "Copying AutoBlend_translations to build/bin"
 )
+
+#
+# texconv (DirectXTex CLI tool)
+#
+# AutoBlend.Core (Scanning/MissingTextureGenerator.cs) shells out to this to synthesize a missing
+# statics/blending texture from whatever diffuse is actually winning in the load order (strips its
+# alpha channel to opaque via `--swizzle rgb1`, verified to reproduce Vanaheimr's own hand-authored
+# statics textures near pixel-for-pixel). The vcpkg "directxtex[tools]" feature just downloads
+# Microsoft's own prebuilt release binary (no local compile), so this copy is cheap. Landed in
+# AutoBlend_dotnetlib alongside AutoBlend.Core.dll rather than bin/ directly, since that's the one
+# folder AutoBlend.Core can locate via AppContext.BaseDirectory regardless of which shell (this one,
+# or the WPF app) is hosting it.
+#
+add_custom_command(
+    TARGET ${EXE_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/tools/directxtex/texconv.exe"
+        "${CMAKE_BINARY_DIR}/bin/AutoBlend_dotnetlib/texconv.exe"
+    COMMENT "Copying texconv.exe to build/bin/AutoBlend_dotnetlib"
+)

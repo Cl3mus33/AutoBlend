@@ -69,4 +69,13 @@ public sealed class PatcherSettings
     /// matching LandscapeFolderRule's TypeLabel) and {Name} (the source vanilla TXST EditorID).
     /// </summary>
     public string TextureSetNamingTemplate { get; set; } = "{Type}{Name}";
+
+    /// <summary>
+    /// When true (default), a landscape texture with no existing statics/blending sibling anywhere
+    /// in the load order gets one synthesized on the fly (alpha channel stripped to opaque, see
+    /// <see cref="AutoBlend.Core.Scanning.MissingTextureGenerator"/>) instead of being left unpatched - so texture
+    /// authors no longer need to hand-author these siblings themselves. Requires texconv.exe to be
+    /// present next to AutoBlend.Core.dll; silently has no effect if it isn't.
+    /// </summary>
+    public bool AutoGenerateMissingStatics { get; set; } = true;
 }

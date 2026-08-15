@@ -112,7 +112,17 @@ public sealed class PatchOrchestrator
                 + "scan its own previous output as if it were a real mod, producing incorrect results.");
         }
 
-        var folderDetector = new LandscapeFolderDetector(_settings.LandscapeFolderRules, fileProbe);
+        // texconv.exe ships next to AutoBlend.Core.dll itself (AppContext.BaseDirectory) so this
+        // resolves the same way regardless of which shell (native or WPF) is hosting this run -
+        // see native/AutoBlend/CMakeLists.txt's texconv copy step for the native side.
+        MissingTextureGenerator? textureGenerator = null;
+        if (_settings.AutoGenerateMissingStatics)
+        {
+            var texconvPath = Path.Combine(AppContext.BaseDirectory, "texconv.exe");
+            textureGenerator = new MissingTextureGenerator(fileProbe, _settings.OutputLocation, texconvPath);
+        }
+
+        var folderDetector = new LandscapeFolderDetector(_settings.LandscapeFolderRules, fileProbe, textureGenerator);
         var blacklist = new BlacklistEvaluator(_settings);
 
         var patchMod = new SkyrimMod(new ModKey(PatchModName, ModType.Plugin), skyrimRelease);

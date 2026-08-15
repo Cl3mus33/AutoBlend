@@ -50,6 +50,12 @@ struct ABParams {
     std::vector<std::wstring> editorIdBlacklistKeywords { L"ice", L"frozen", L"glass", L"unique" };
 
     std::wstring textureSetNamingTemplate = L"{Type}{Name}";
+
+    /// @brief When true (default), a landscape texture with no existing statics/blending sibling
+    /// gets one synthesized on the fly (see AutoBlend.Core.Scanning.MissingTextureGenerator)
+    /// instead of being left unpatched. No UI control - carried through unchanged, same as
+    /// textureSetNamingTemplate above.
+    bool autoGenerateMissingStatics = true;
 };
 
 /**

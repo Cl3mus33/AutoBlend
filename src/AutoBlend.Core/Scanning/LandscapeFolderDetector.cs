@@ -18,11 +18,20 @@ public sealed class LandscapeFolderDetector
 
     private readonly IReadOnlyList<LandscapeFolderRule> _rules;
     private readonly IGameFileProbe _fileProbe;
+    private readonly MissingTextureGenerator? _textureGenerator;
 
-    public LandscapeFolderDetector(IReadOnlyList<LandscapeFolderRule> rules, IGameFileProbe fileProbe)
+    /// <param name="textureGenerator">
+    /// When set, a texture with no existing statics/blending sibling gets one synthesized on the
+    /// fly (see <see cref="MissingTextureGenerator"/>) instead of being left undetected - so mod
+    /// authors no longer need to hand-author these siblings themselves. Null disables this (e.g.
+    /// texconv isn't available, or the user turned the setting off) and falls back to the previous
+    /// "not found" behavior.
+    /// </param>
+    public LandscapeFolderDetector(IReadOnlyList<LandscapeFolderRule> rules, IGameFileProbe fileProbe, MissingTextureGenerator? textureGenerator = null)
     {
         _rules = rules;
         _fileProbe = fileProbe;
+        _textureGenerator = textureGenerator;
     }
 
     /// <summary>
@@ -76,6 +85,15 @@ public sealed class LandscapeFolderDetector
             var candidatePath = string.Join('\\', candidateSegments);
 
             if (_fileProbe.Exists(candidatePath))
+            {
+                return new LandscapeFolderDetection(rule, candidatePath);
+            }
+
+            // Nothing already provides this sibling - synthesize one from whatever diffuse is
+            // actually winning in the load order, so a mod author never has to hand-author it (see
+            // MissingTextureGenerator's own doc comment for why this is safe: verified to reproduce
+            // Vanaheimr's own hand-authored statics textures almost pixel-for-pixel).
+            if (_textureGenerator is not null && _textureGenerator.TryGenerate(vanillaDiffusePath, candidatePath, out _))
             {
                 return new LandscapeFolderDetection(rule, candidatePath);
             }
