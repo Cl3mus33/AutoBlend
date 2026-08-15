@@ -14,8 +14,8 @@ First release.
   `blending` sibling subfolder — the convention several landscape texture mods (e.g. Vanaheimr)
   already use to signal "this texture wants alpha blending, not alpha testing" — and includes the
   game's own implicit base masters (`Skyrim.esm`, `Update.esm`, `Dawnguard.esm`, `HearthFires.esm`,
-  `Dragonborn.esm`) when reading a Mod Organizer 2 load order, even though MO2's own `plugins.txt`
-  never lists them.
+  `Dragonborn.esm`, `_ResourcePack.esl`) when reading a Mod Organizer 2 load order, even though
+  MO2's own `plugins.txt` never lists them.
 - Evaluates each Static/MoveableStatic record individually: a shape's own pre-existing Alternate
   Texture is checked on its own merits, independently of whether the shared mesh's default
   (no-override) texture matches — so records sharing one mesh but displaying different regional
