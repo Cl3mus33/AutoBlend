@@ -6,9 +6,6 @@
     },
     {
       "name": "directxtex",
-      "features": [
-        "tools"
-      ],
       "default-features": false,
       "version>=": "2026-05-07"
     },

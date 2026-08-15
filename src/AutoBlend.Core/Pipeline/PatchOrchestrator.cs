@@ -112,17 +112,10 @@ public sealed class PatchOrchestrator
                 + "scan its own previous output as if it were a real mod, producing incorrect results.");
         }
 
-        // texconv.exe ships next to AutoBlend.Core.dll itself - see native/AutoBlend/CMakeLists.txt's
-        // texconv copy step for the native side. Anchored on this assembly's own physical file
-        // location rather than AppContext.BaseDirectory: when this DLL is hosted in-process inside
-        // the native (DNNE) shell, BaseDirectory isn't guaranteed to be AutoBlend_dotnetlib\ - the
-        // assembly's own Location always is, regardless of which shell is hosting it.
         MissingTextureGenerator? textureGenerator = null;
         if (_settings.AutoGenerateMissingStatics)
         {
-            var assemblyDir = Path.GetDirectoryName(typeof(PatchOrchestrator).Assembly.Location);
-            var texconvPath = Path.Combine(!string.IsNullOrEmpty(assemblyDir) ? assemblyDir : AppContext.BaseDirectory, "texconv.exe");
-            textureGenerator = new MissingTextureGenerator(fileProbe, _settings.OutputLocation, texconvPath);
+            textureGenerator = new MissingTextureGenerator(fileProbe, _settings.OutputLocation);
         }
 
         var folderDetector = new LandscapeFolderDetector(_settings.LandscapeFolderRules, fileProbe, textureGenerator);

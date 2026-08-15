@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace AutoBlend.Core.Scanning;
 
@@ -18,36 +18,40 @@ namespace AutoBlend.Core.Scanning;
 /// alpha - i.e. this is the exact transform Vanaheimr's own textures were made with, not a
 /// convenient approximation.
 ///
-/// Implemented by shelling out to texconv.exe (Microsoft's DirectXTex CLI tool, MIT-licensed,
-/// shipped alongside AutoBlend.Core.dll - see native/AutoBlend/CMakeLists.txt) with
-/// `--swizzle rgb1`, which keeps R/G/B from the source and hardcodes A to 1 (fully opaque).
+/// Implemented via a direct P/Invoke call into AutoBlendTexTools.dll (native/AutoBlendTexTools, a
+/// small DirectXTex wrapper built alongside this project) rather than shelling out to texconv.exe
+/// as a subprocess: MO2's USVFS hooks CreateProcess for every child process of an MO2-launched
+/// executable, and texconv.exe reliably crashed with STATUS_ACCESS_VIOLATION under that hook in
+/// real-world testing despite working flawlessly standalone outside MO2. Calling the same
+/// transform in-process (no new process ever gets created) sidesteps that hook entirely.
 /// </summary>
 public sealed class MissingTextureGenerator
 {
+    [DllImport("AutoBlendTexTools.dll", CharSet = CharSet.Unicode)]
+    private static extern int ab_strip_alpha_to_opaque(string srcPath, string dstPath);
+
     private readonly IGameFileProbe _fileProbe;
     private readonly string _outputLocation;
-    private readonly string? _texconvPath;
     private readonly Dictionary<string, string?> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _diagnostics = new();
-    private bool _reportedMissingTexconv;
+    private bool _reportedMissingDll;
 
     /// <summary>Number of textures successfully synthesized this run.</summary>
     public int GeneratedCount { get; private set; }
 
     /// <summary>Number of generation attempts that were made but failed (source not found,
-    /// texconv failed to run, etc.) - distinct from a sibling already existing, which never
-    /// reaches this generator at all.</summary>
+    /// transform failed, etc.) - distinct from a sibling already existing, which never reaches
+    /// this generator at all.</summary>
     public int FailedCount { get; private set; }
 
     /// <summary>Human-readable detail for every failed attempt, capped to avoid flooding the run
-    /// log on a modlist where texconv can't run at all - the first entry always explains why.</summary>
+    /// log on a modlist where generation can't run at all - the first entry always explains why.</summary>
     public IReadOnlyList<string> Diagnostics => _diagnostics;
 
-    public MissingTextureGenerator(IGameFileProbe fileProbe, string outputLocation, string? texconvPath)
+    public MissingTextureGenerator(IGameFileProbe fileProbe, string outputLocation)
     {
         _fileProbe = fileProbe;
         _outputLocation = outputLocation;
-        _texconvPath = texconvPath;
     }
 
     /// <summary>
@@ -55,9 +59,9 @@ public sealed class MissingTextureGenerator
     /// e.g. "textures\landscape\rocks01.dds") at <paramref name="targetRelativePath"/> (e.g.
     /// "textures\landscape\statics\rocks01.dds") inside the output location's own textures folder.
     /// Cached per target path within this generator's lifetime (one patch run) so repeat calls
-    /// don't re-invoke texconv for the same texture. Returns false if generation isn't possible
-    /// (texconv missing, source missing, or the conversion itself failed) - callers should treat
-    /// that exactly like "no sibling found" rather than an error.
+    /// don't redo the transform for the same texture. Returns false if generation isn't possible
+    /// (source missing, or the transform itself failed) - callers should treat that exactly like
+    /// "no sibling found" rather than an error.
     /// </summary>
     public bool TryGenerate(string sourceDiffusePath, string targetRelativePath, out string generatedFullPath)
     {
@@ -94,16 +98,6 @@ public sealed class MissingTextureGenerator
     {
         generatedFullPath = Path.Combine(_outputLocation, targetRelativePath);
 
-        if (string.IsNullOrEmpty(_texconvPath) || !File.Exists(_texconvPath))
-        {
-            if (!_reportedMissingTexconv)
-            {
-                _reportedMissingTexconv = true;
-                AddDiagnostic($"Auto-generation disabled: texconv.exe not found at '{_texconvPath}'.");
-            }
-            return false;
-        }
-
         string extractedPath;
         try
         {
@@ -131,52 +125,24 @@ public sealed class MissingTextureGenerator
         {
             Directory.CreateDirectory(outputDir);
 
-            var psi = new ProcessStartInfo
+            var resultCode = ab_strip_alpha_to_opaque(extractedPath, generatedFullPath);
+            if (resultCode != 0)
             {
-                FileName = _texconvPath,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-            };
-            psi.ArgumentList.Add("-ft");
-            psi.ArgumentList.Add("dds");
-            psi.ArgumentList.Add("--swizzle");
-            psi.ArgumentList.Add("rgb1");
-            psi.ArgumentList.Add("-y");
-            psi.ArgumentList.Add("-o");
-            psi.ArgumentList.Add(outputDir);
-            psi.ArgumentList.Add(extractedPath);
-
-            using var proc = Process.Start(psi);
-            if (proc is null)
-            {
-                AddDiagnostic($"'{sourceDiffusePath}': failed to start texconv.exe.");
+                AddDiagnostic($"'{sourceDiffusePath}': AutoBlendTexTools failed (code {resultCode}).");
                 return false;
             }
 
-            var stdout = proc.StandardOutput.ReadToEnd();
-            var stderr = proc.StandardError.ReadToEnd();
-            proc.WaitForExit();
-
-            // texconv names its output after the input file's own stem - the extracted temp file's
-            // GUID name, not the final destination filename - so move it into place afterward.
-            var texconvOutputPath = Path.Combine(outputDir, Path.GetFileNameWithoutExtension(extractedPath) + ".dds");
-            if (proc.ExitCode != 0 || !File.Exists(texconvOutputPath))
-            {
-                var detail = !string.IsNullOrWhiteSpace(stderr) ? stderr : stdout;
-                AddDiagnostic($"'{sourceDiffusePath}': texconv.exe exited {proc.ExitCode}: {detail.Trim()}");
-                return false;
-            }
-
-            if (File.Exists(generatedFullPath))
-            {
-                File.Delete(generatedFullPath);
-            }
-
-            File.Move(texconvOutputPath, generatedFullPath);
             success = true;
             return true;
+        }
+        catch (DllNotFoundException ex)
+        {
+            if (!_reportedMissingDll)
+            {
+                _reportedMissingDll = true;
+                AddDiagnostic($"Auto-generation disabled: AutoBlendTexTools.dll not found ({ex.Message}).");
+            }
+            return false;
         }
         catch (Exception ex)
         {
@@ -194,12 +160,11 @@ public sealed class MissingTextureGenerator
                 // best-effort cleanup of the temp extraction
             }
 
-            // Directory.CreateDirectory above may have created an empty "statics"/"blending"
-            // folder that a failed generation never populated - remove it so a run that can't
-            // generate anything (e.g. texconv.exe missing its runtime DLLs) doesn't litter the
-            // output textures tree with empty subfolders. Only touches directories this call
-            // itself created, and only if still empty, so a folder another texture already
-            // populated is never removed.
+            // Directory.CreateDirectory above may have created an empty "statics" folder that a
+            // failed generation never populated - remove it so a run that can't generate anything
+            // doesn't litter the output textures tree with empty subfolders. Only touches
+            // directories this call itself created, and only if still empty, so a folder another
+            // texture already populated is never removed.
             if (!success && createdOutputDir)
             {
                 try
