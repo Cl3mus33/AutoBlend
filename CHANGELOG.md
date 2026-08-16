@@ -9,6 +9,15 @@ All notable changes to this project are documented here. Format loosely follows
 
 First release.
 
+### Fixed
+- **Critical**: MO2 mod priority was inverted - `modlist.txt` is written in the opposite order
+  from MO2's own mod list panel (file top = panel bottom, not the same order), so this tool was
+  resolving the *lowest*-priority mod's file as the winner instead of the highest's, for every
+  loose file and archive lookup. Verified directly against a real instance (modlist.txt
+  cross-checked against a live MO2 panel screenshot across four mods) and confirmed fixed against
+  two disputed textures that now resolve to the mod the user expected. **Every previous run's
+  output should be considered suspect and regenerated.**
+
 ### Added
 - Scans every `*/landscape/` texture path (vanilla, DLC, and mod-added) for a `statics` or
   `blending` sibling subfolder — the convention several landscape texture mods (e.g. Vanaheimr)
