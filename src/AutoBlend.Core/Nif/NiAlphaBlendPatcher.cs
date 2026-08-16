@@ -77,6 +77,26 @@ public sealed class NiAlphaBlendPatcher
                 }
             }
 
+            // Every shape this loop touches ends up alpha-blended (either just now, or already so
+            // in the source mesh) with none of the genuinely-translucent surfaces this would harm
+            // (glass, ice) ever reaching here - those are excluded via the mesh blacklist earlier
+            // in the pipeline. Measured directly against a real modlist: ZBuffer_Write was missing
+            // on the majority of already-alpha-blend source shapes too, not just the ones AutoBlend
+            // itself flips from alpha-test - so this isn't scoped to flagsChanged. NifFile.GetShader()
+            // returns its result typed as the NiShader base class regardless of the block's real
+            // type, so downcasting through it silently never matches BSShaderProperty - fetching the
+            // block directly by its own ref index is what actually returns the correctly-typed
+            // BSLightingShaderProperty instance.
+            if (shape.HasShaderProperty())
+            {
+                var shaderBlockIndex = shape.ShaderPropertyRef().index;
+                if (nifFile.GetHeader().GetBlockById(shaderBlockIndex) is BSShaderProperty shaderProperty
+                    && !BSShaderFlags2.IsZBufferWriteSet(shaderProperty.shaderFlags2))
+                {
+                    shaderProperty.shaderFlags2 = BSShaderFlags2.WithZBufferWrite(shaderProperty.shaderFlags2);
+                }
+            }
+
             patched.Add(new ShapePatchResult(shapeName, originalFlags, newFlags, derivedDiffusePath));
             _ = flagsChanged; // diffuse rewrite alone is enough to record the shape as patched
         }
