@@ -82,18 +82,29 @@ public sealed class NiAlphaBlendPatcher
             // (glass, ice) ever reaching here - those are excluded via the mesh blacklist earlier
             // in the pipeline. Measured directly against a real modlist: ZBuffer_Write was missing
             // on the majority of already-alpha-blend source shapes too, not just the ones AutoBlend
-            // itself flips from alpha-test - so this isn't scoped to flagsChanged. NifFile.GetShader()
-            // returns its result typed as the NiShader base class regardless of the block's real
-            // type, so downcasting through it silently never matches BSShaderProperty - fetching the
-            // block directly by its own ref index is what actually returns the correctly-typed
-            // BSLightingShaderProperty instance.
+            // itself flips from alpha-test - so this isn't scoped to flagsChanged. No_Fade joins it
+            // for the same reason (stop the shape from dithering out at distance, on top of writing
+            // depth correctly). NifFile.GetShader() returns its result typed as the NiShader base
+            // class regardless of the block's real type, so downcasting through it silently never
+            // matches BSShaderProperty - fetching the block directly by its own ref index is what
+            // actually returns the correctly-typed BSLightingShaderProperty instance.
             if (shape.HasShaderProperty())
             {
                 var shaderBlockIndex = shape.ShaderPropertyRef().index;
-                if (nifFile.GetHeader().GetBlockById(shaderBlockIndex) is BSShaderProperty shaderProperty
-                    && !BSShaderFlags2.IsZBufferWriteSet(shaderProperty.shaderFlags2))
+                if (nifFile.GetHeader().GetBlockById(shaderBlockIndex) is BSShaderProperty shaderProperty)
                 {
-                    shaderProperty.shaderFlags2 = BSShaderFlags2.WithZBufferWrite(shaderProperty.shaderFlags2);
+                    var flags2 = shaderProperty.shaderFlags2;
+                    if (!BSShaderFlags2.IsZBufferWriteSet(flags2))
+                    {
+                        flags2 = BSShaderFlags2.WithZBufferWrite(flags2);
+                    }
+
+                    if (!BSShaderFlags2.IsNoFadeSet(flags2))
+                    {
+                        flags2 = BSShaderFlags2.WithNoFade(flags2);
+                    }
+
+                    shaderProperty.shaderFlags2 = flags2;
                 }
             }
 
