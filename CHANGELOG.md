@@ -85,12 +85,12 @@ First release.
   own format (previously mirrored it, which could produce BC1/BC3 output) - keeps every generated
   texture on one consistent, modern format and avoids at least one third-party DDS viewer
   misreading BC3's alpha channel.
-- Sets the ZBuffer_Write shader flag on every shape AutoBlend touches - many source meshes ship
-  with it disabled, which is fine for their original alpha state but causes visible render
-  artifacts once real alpha blending is enabled. Verified against a real modlist: 741/766
-  alpha-blend shapes in AutoBlend's own output now carry the flag; the remaining 25 are legitimate
-  fire/glow/smoke/fake-water effect shapes outside AutoBlend's own detected-shape scope, which
-  correctly stay untouched.
+- Sets the ZBuffer_Write and No_Fade shader flags on every shape AutoBlend touches - many source
+  meshes ship with these disabled, which is fine for their original alpha state but causes
+  visible render artifacts (and unwanted distance dithering) once real alpha blending is enabled.
+  Verified against a real modlist: 741/766 alpha-blend shapes in AutoBlend's own output now carry
+  ZBuffer_Write; the remaining 25 are legitimate fire/glow/smoke/fake-water effect shapes outside
+  AutoBlend's own detected-shape scope, which correctly stay untouched.
 
 ### Performance
 - Full-pipeline runtime on a large real modlist (24,348 records, 14,265 meshes) dropped from
