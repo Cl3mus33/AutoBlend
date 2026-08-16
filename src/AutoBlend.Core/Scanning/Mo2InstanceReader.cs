@@ -7,8 +7,10 @@ namespace AutoBlend.Core.Scanning;
 /// Parses a Mod Organizer 2 profile's modlist.txt and resolves a relative Data-folder path
 /// against its virtual file system: the "overwrite" folder first, then each enabled mod folder's
 /// own loose files in priority order, then (only if no loose file anywhere provides it) each
-/// enabled mod's own BSA/BA2 archives, also in priority order. MO2 writes modlist.txt top-to-bottom
-/// matching its mod list panel, where the bottom of that panel wins file conflicts — so the last
+/// enabled mod's own BSA/BA2 archives, also in priority order. MO2 writes modlist.txt in the
+/// OPPOSITE order from its own mod list panel (file top = panel bottom) - verified directly
+/// against a real instance's modlist.txt alongside a screenshot of its panel, four mods deep. The
+/// panel's own bottom wins conflicts, so the file's own top is highest priority - the first
 /// enabled line in the file is checked first here. Loose always beats archived, matching Skyrim's
 /// own engine behavior - a mod that packs assets into its own BSA rather than shipping them loose
 /// (e.g. Beyond Skyrim's BSAssets.bsa/BSHeartland.bsa) was previously invisible to this reader
@@ -54,11 +56,13 @@ public sealed class Mo2InstanceReader : IDisposable
                 modlistPath);
         }
 
-        var enabledLowToHighPriority = ParseEnabledMods(modlistPath);
-
-        EnabledModFoldersHighToLowPriority = enabledLowToHighPriority
-            .AsEnumerable()
-            .Reverse()
+        // ParseEnabledMods reads the file top-to-bottom, exactly the order it's written in. Verified
+        // directly against a real instance's own modlist.txt alongside a screenshot of its MO2 mod
+        // panel: the file is written in the OPPOSITE order from the panel (file top = panel bottom),
+        // not the same order as an earlier version of this comment assumed. Since the panel's own
+        // bottom wins conflicts, that makes the file's own TOP the highest-priority mod - so the
+        // parsed top-to-bottom list already IS high-to-low priority, with no reversal needed.
+        EnabledModFoldersHighToLowPriority = ParseEnabledMods(modlistPath)
             .Select(name => Path.Combine(ModsRoot, name))
             .Where(Directory.Exists)
             .ToList();
