@@ -112,6 +112,20 @@ public sealed class PatchOrchestrator
                 + "scan its own previous output as if it were a real mod, producing incorrect results.");
         }
 
+        // Mod authors can ship their own "*_autoblend.json" allowlist entries alongside their mod
+        // (e.g. a landscape pack declaring which of its own textures are safe to auto-generate a
+        // statics/blend sibling for) - collected from every enabled mod, not just the user's own
+        // locally-configured AutoGenerateAllowlist, and merged together.
+        var modProvidedAllowlist = ModProvidedAllowlistReader.Collect(mo2Reader, dataFolder, warnings);
+        var effectiveAllowlist = _settings.AutoGenerateAllowlist
+            .Concat(modProvidedAllowlist)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (modProvidedAllowlist.Count > 0)
+        {
+            Report($"Merged {modProvidedAllowlist.Count} mod-provided allowlist entry/entries from *_autoblend.json file(s).");
+        }
+
         MissingTextureGenerator? textureGenerator = null;
         if (_settings.AutoGenerateMissingStatics)
         {
@@ -119,7 +133,7 @@ public sealed class PatchOrchestrator
         }
 
         var folderDetector = new LandscapeFolderDetector(
-            _settings.LandscapeFolderRules, fileProbe, textureGenerator, _settings.AutoGenerateAllowlist, _settings.GeneratePbrSlots);
+            _settings.LandscapeFolderRules, fileProbe, textureGenerator, effectiveAllowlist, _settings.GeneratePbrSlots);
         var blacklist = new BlacklistEvaluator(_settings);
 
         // Runs before any mesh/record scanning, as its own explicit phase: the allowlist is a
@@ -130,11 +144,10 @@ public sealed class PatchOrchestrator
         // the exact same textures later is then just a fast cache lookup, not a second attempt.
         if (textureGenerator is not null)
         {
-            var allowlist = _settings.AutoGenerateAllowlist;
-            for (var i = 0; i < allowlist.Count; i++)
+            for (var i = 0; i < effectiveAllowlist.Count; i++)
             {
-                Report($"Generating missing statics textures... ({i + 1}/{allowlist.Count})", i + 1, allowlist.Count);
-                folderDetector.Detect(allowlist[i]);
+                Report($"Generating missing statics textures... ({i + 1}/{effectiveAllowlist.Count})", i + 1, effectiveAllowlist.Count);
+                folderDetector.Detect(effectiveAllowlist[i]);
             }
         }
 
