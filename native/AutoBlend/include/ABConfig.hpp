@@ -97,7 +97,6 @@ struct ABParams {
         LR"(textures\landscape\fieldgrass02.dds)",
         LR"(textures\landscape\frozenmarshice01.dds)",
         LR"(textures\landscape\mineralpoolterrace.dds)",
-        LR"(textures\landscape\reachmoss01.dds)",
         LR"(textures\landscape\reachmossyrocks01.dds)",
         LR"(textures\landscape\riverbededge.dds)",
         LR"(textures\landscape\rocks01.dds)",

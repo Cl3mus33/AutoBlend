@@ -126,7 +126,6 @@ public sealed class PatcherSettings
         @"textures\landscape\fieldgrass02.dds",
         @"textures\landscape\frozenmarshice01.dds",
         @"textures\landscape\mineralpoolterrace.dds",
-        @"textures\landscape\reachmoss01.dds",
         @"textures\landscape\reachmossyrocks01.dds",
         @"textures\landscape\riverbededge.dds",
         @"textures\landscape\rocks01.dds",
