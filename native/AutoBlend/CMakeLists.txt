@@ -150,6 +150,31 @@ add_custom_command(
 )
 
 #
+# Bundled *_autoblend.json allowlist manifests
+#
+# AutoBlend's own former hardcoded AutoGenerateAllowlist defaults (base game/DLC/Beyond Skyrim
+# landscape textures), now shipped as regular "*_autoblend.json" files sitting next to the exe -
+# AutoBlend's own mod folder is itself just another enabled MO2 mod as far as
+# ModProvidedAllowlistReader is concerned, so these are picked up through the exact same mechanism
+# any other mod's own manifest would be, no special-casing needed. Kept alongside the C# hardcoded
+# defaults (harmless duplication - entries are deduplicated at merge time) as a defensive fallback
+# for a build missing these files for any reason.
+#
+add_custom_command(
+    TARGET ${EXE_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/Vanilla_autoblend.json"
+        "${CMAKE_BINARY_DIR}/bin/Vanilla_autoblend.json"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/BSBruma_autoblend.json"
+        "${CMAKE_BINARY_DIR}/bin/BSBruma_autoblend.json"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/ResourcePack_autoblend.json"
+        "${CMAKE_BINARY_DIR}/bin/ResourcePack_autoblend.json"
+    COMMENT "Copying bundled *_autoblend.json manifests to build/bin"
+)
+
+#
 # GUI translations
 #
 # Same convention as AutoSeasons' own AutoSeasons_translations/ - one JSON file per language, read
