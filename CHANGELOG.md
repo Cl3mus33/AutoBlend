@@ -111,6 +111,7 @@ First release.
   instead (reviewable/editable straight from the "Edit Allowlist..." table, saved through the app
   itself like any other entry, rather than requiring a hand-edited JSON file in the install
   folder).
+- Removed `textures\landscape\reachmoss01.dds` from the default allowlist.
 
 ### Performance
 - Full-pipeline runtime on a large real modlist (24,348 records, 14,265 meshes) dropped from
