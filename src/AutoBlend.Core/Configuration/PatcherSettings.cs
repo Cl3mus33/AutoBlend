@@ -99,12 +99,44 @@ public sealed class PatcherSettings
     /// </summary>
     public bool GeneratePbrSlots { get; set; }
 
-    /// <summary>
-    /// Empty by default - the base game/DLC/Beyond Skyrim landscape textures this project's own
-    /// author originally hand-verified now ship as bundled "Vanilla_autoblend.json",
-    /// "BSBruma_autoblend.json", and "ResourcePack_autoblend.json" files next to the exe instead
-    /// (see <see cref="Scanning.ModProvidedAllowlistReader"/>), picked up through the exact same
-    /// mechanism as any other mod's own manifest rather than hardcoded here.
-    /// </summary>
-    public List<string> AutoGenerateAllowlist { get; set; } = new();
+    public List<string> AutoGenerateAllowlist { get; set; } = new()
+    {
+        @"textures\_resourcepack\landscape\desertrocks01_d.dds",
+        @"textures\_resourcepack\landscape\sand01_d.dds",
+        @"textures\_resourcepack\landscape\sand02_d.dds",
+        @"textures\_resourcepack\landscape\volcaniccracked01_d.dds",
+        @"textures\_resourcepack\landscape\volcanicrocks01_d.dds",
+        @"textures\bscyrodiil\landscape\colovianrocks01revised.dds",
+        @"textures\bscyrodiil\landscape\dirt01.dds",
+        @"textures\bscyrodiil\landscape\oakforestgrass01.dds",
+        @"textures\bscyrodiil\landscape\oakforestleaves01.dds",
+        @"textures\bstamriel\landscape\westweald\rockswestweald.dds",
+        @"textures\bstamriel\landscape\westweald\wwlemoss01.dds",
+        @"textures\dlc02\landscape\volcanic_ash_01.dds",
+        @"textures\dlc02\landscape\volcanic_ash_rocks_01_d.dds",
+        @"textures\dlc02\landscape\volcanic_ash_tundra_02.dds",
+        @"textures\dlc02\landscape\volcanic_ash_tundra_04.dds",
+        @"textures\landscape\coastbeach01.dds",
+        @"textures\landscape\dirt02.dds",
+        @"textures\landscape\fallforestdirt01.dds",
+        @"textures\landscape\fallforestgrass01.dds",
+        @"textures\landscape\fallforestleaves01.dds",
+        @"textures\landscape\fallforestrocks01.dds",
+        @"textures\landscape\fieldgrass01.dds",
+        @"textures\landscape\fieldgrass02.dds",
+        @"textures\landscape\frozenmarshice01.dds",
+        @"textures\landscape\mineralpoolterrace.dds",
+        @"textures\landscape\reachmoss01.dds",
+        @"textures\landscape\reachmossyrocks01.dds",
+        @"textures\landscape\riverbededge.dds",
+        @"textures\landscape\rocks01.dds",
+        @"textures\landscape\snow01.dds",
+        @"textures\landscape\snowrocks01.dds",
+        @"textures\landscape\tundra01.dds",
+        @"textures\landscape\tundrarocks01.dds",
+        @"textures\landscape\volcanictundradirt01.dds",
+        @"textures\landscape\volcanictundragravel01.dds",
+        @"textures\landscape\volcanictundraminerals01.dds",
+        @"textures\landscape\volcanictundrarocks01.dds",
+    };
 }
