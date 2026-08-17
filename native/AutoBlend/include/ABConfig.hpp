@@ -69,47 +69,12 @@ struct ABParams {
     /// "textures\mymod\landscape\*") gating which source diffuse textures autoGenerateMissingStatics
     /// is allowed to synthesize a statics sibling for - every landscape texture with an
     /// alpha-blended shape is structurally "eligible", but not every one is something a statics
-    /// variant actually makes sense for, so generation is opt-in per texture. Defaults to the base
-    /// game/DLC/Beyond Skyrim landscape textures this project's own author has verified need one.
-    std::vector<std::wstring> autoGenerateAllowlist {
-        LR"(textures\_resourcepack\landscape\desertrocks01_d.dds)",
-        LR"(textures\_resourcepack\landscape\sand01_d.dds)",
-        LR"(textures\_resourcepack\landscape\sand02_d.dds)",
-        LR"(textures\_resourcepack\landscape\volcaniccracked01_d.dds)",
-        LR"(textures\_resourcepack\landscape\volcanicrocks01_d.dds)",
-        LR"(textures\bscyrodiil\landscape\colovianrocks01revised.dds)",
-        LR"(textures\bscyrodiil\landscape\dirt01.dds)",
-        LR"(textures\bscyrodiil\landscape\oakforestgrass01.dds)",
-        LR"(textures\bscyrodiil\landscape\oakforestleaves01.dds)",
-        LR"(textures\bstamriel\landscape\westweald\rockswestweald.dds)",
-        LR"(textures\bstamriel\landscape\westweald\wwlemoss01.dds)",
-        LR"(textures\dlc02\landscape\volcanic_ash_01.dds)",
-        LR"(textures\dlc02\landscape\volcanic_ash_rocks_01_d.dds)",
-        LR"(textures\dlc02\landscape\volcanic_ash_tundra_02.dds)",
-        LR"(textures\dlc02\landscape\volcanic_ash_tundra_04.dds)",
-        LR"(textures\landscape\coastbeach01.dds)",
-        LR"(textures\landscape\dirt02.dds)",
-        LR"(textures\landscape\fallforestdirt01.dds)",
-        LR"(textures\landscape\fallforestgrass01.dds)",
-        LR"(textures\landscape\fallforestleaves01.dds)",
-        LR"(textures\landscape\fallforestrocks01.dds)",
-        LR"(textures\landscape\fieldgrass01.dds)",
-        LR"(textures\landscape\fieldgrass02.dds)",
-        LR"(textures\landscape\frozenmarshice01.dds)",
-        LR"(textures\landscape\mineralpoolterrace.dds)",
-        LR"(textures\landscape\reachmoss01.dds)",
-        LR"(textures\landscape\reachmossyrocks01.dds)",
-        LR"(textures\landscape\riverbededge.dds)",
-        LR"(textures\landscape\rocks01.dds)",
-        LR"(textures\landscape\snow01.dds)",
-        LR"(textures\landscape\snowrocks01.dds)",
-        LR"(textures\landscape\tundra01.dds)",
-        LR"(textures\landscape\tundrarocks01.dds)",
-        LR"(textures\landscape\volcanictundradirt01.dds)",
-        LR"(textures\landscape\volcanictundragravel01.dds)",
-        LR"(textures\landscape\volcanictundraminerals01.dds)",
-        LR"(textures\landscape\volcanictundrarocks01.dds)",
-    };
+    /// variant actually makes sense for, so generation is opt-in per texture. Empty by default -
+    /// the base game/DLC/Beyond Skyrim landscape textures this project's own author originally
+    /// hand-verified now ship as bundled "Vanilla_autoblend.json"/"BSBruma_autoblend.json"/
+    /// "ResourcePack_autoblend.json" files next to the exe instead, picked up through the exact
+    /// same mechanism as any other mod's own manifest rather than hardcoded here.
+    std::vector<std::wstring> autoGenerateAllowlist {};
 };
 
 /**

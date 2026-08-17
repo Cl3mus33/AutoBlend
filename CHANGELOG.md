@@ -106,6 +106,11 @@ First release.
   mod, not a single shared filename), so multiple mods' manifests accumulate instead of only the
   highest-priority one winning. Merged with the user's own locally-configured allowlist at run
   time; verified against a real MO2 instance with two separate mods each carrying their own file.
+- AutoBlend's own former hardcoded `AutoGenerateAllowlist` defaults now ship exclusively as
+  regular `*_autoblend.json` files (`Vanilla_autoblend.json`, `BSBruma_autoblend.json`,
+  `ResourcePack_autoblend.json`) sitting next to the exe, picked up through the exact same
+  mechanism as any other mod's own manifest - `AutoGenerateAllowlist`'s own C# default is now
+  empty, so an existing `settings.json` no longer needs to carry these 37 entries itself.
 
 ### Performance
 - Full-pipeline runtime on a large real modlist (24,348 records, 14,265 meshes) dropped from
