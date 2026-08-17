@@ -100,6 +100,12 @@ First release.
   Verified against a real modlist: 741/766 alpha-blend shapes in AutoBlend's own output now carry
   ZBuffer_Write; the remaining 25 are legitimate fire/glow/smoke/fake-water effect shapes outside
   AutoBlend's own detected-shape scope, which correctly stay untouched.
+- Mod authors can now ship their own `AutoGenerateAllowlist` entries alongside their mod, as a
+  JSON array of the same wildcard path strings in a file named `*_autoblend.json` at the Data
+  root - mirroring Base Object Swapper's own `*_SWAP.ini` convention (one uniquely-named file per
+  mod, not a single shared filename), so multiple mods' manifests accumulate instead of only the
+  highest-priority one winning. Merged with the user's own locally-configured allowlist at run
+  time; verified against a real MO2 instance with two separate mods each carrying their own file.
 
 ### Performance
 - Full-pipeline runtime on a large real modlist (24,348 records, 14,265 meshes) dropped from
