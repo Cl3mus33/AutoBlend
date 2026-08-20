@@ -153,7 +153,7 @@ public sealed class PatchOrchestrator
 
         var patchMod = new SkyrimMod(new ModKey(PatchModName, ModType.Plugin), skyrimRelease);
         var txstFactory = new DerivedTextureSetFactory(patchMod, _settings.TextureSetNamingTemplate);
-        var derivedTxstCache = new Dictionary<string, TextureSet>(StringComparer.OrdinalIgnoreCase);
+        var derivedTxstCache = new Dictionary<string, TextureSet?>(StringComparer.OrdinalIgnoreCase);
 
         Report("Scanning Static and MoveableStatic records...");
         var meshIndex = new MeshUsageIndex();
@@ -428,8 +428,31 @@ public sealed class PatchOrchestrator
                             var cacheKey = $"{t.Detection!.Rule.FolderName}|{t.Source!.SourceName}";
                             if (!derivedTxstCache.TryGetValue(cacheKey, out var derivedTxst))
                             {
-                                derivedTxst = txstFactory.CreateDerived(t.Source!, t.Detection!);
+                                try
+                                {
+                                    derivedTxst = txstFactory.CreateDerived(t.Source!, t.Detection!);
+                                }
+                                catch (Exception ex)
+                                {
+                                    // A source TextureSet's own texture path came from a third-party
+                                    // plugin, unvalidated - some mod authors' CK setups bake in a
+                                    // malformed path (e.g. an absolute path missing "Data" entirely,
+                                    // which Mutagen's AssetLink construction rejects outright).
+                                    // Skipping just this one derived TextureSet (and every shape that
+                                    // would have used it) keeps one bad mod from aborting the whole
+                                    // run for every other record - matches the existing "left
+                                    // untouched"/"skipped" resilience pattern used elsewhere here.
+                                    warnings.Add($"Could not create derived TextureSet for '{t.Source!.SourceName}' "
+                                        + $"({t.Detection!.Rule.FolderName}): {ex.Message} - left untouched.");
+                                    derivedTxst = null;
+                                }
+
                                 derivedTxstCache[cacheKey] = derivedTxst;
+                            }
+
+                            if (derivedTxst is null)
+                            {
+                                continue;
                             }
 
                             AlternateTextureAssigner.Assign(model, shapeName, t.ShapeIndex, derivedTxst);

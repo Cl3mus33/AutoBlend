@@ -5,6 +5,23 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-08-20
+
+### Fixed
+- A malformed absolute texture path baked into a third-party plugin's own TXST record (some mod
+  authors' CK setups store an absolute path missing "Data" entirely instead of a proper
+  Data-relative one) aborted the ENTIRE run with a raw "Absolute path did not have Data folder
+  within it." error and nothing generated at all, instead of just that one derived TextureSet
+  failing. Reported directly (a user hit this on their own real modlist). Root-caused and
+  reproduced exactly via a synthetic TXST with a malformed `NormalOrGloss` path, confirming
+  Mutagen's own `AssetLink` construction is what throws. `PatchOrchestrator` now catches this
+  per-TextureSet, logs it as a warning ("Could not create derived TextureSet for '...' - left
+  untouched."), and continues the run for every other record - matching the existing
+  "Mesh not found, skipped"/"Could not resolve existing TextureSet... - left untouched" resilience
+  pattern already used elsewhere. Verified via a full MO2-mode regression run against a real,
+  large modlist: identical counts to before the fix (27006 records scanned, 7 TextureSets created,
+  165 Alternate Textures assigned) - the fix only changes behavior on the malformed-data path.
+
 ## [1.0.2] - 2026-08-20
 
 ### Added
