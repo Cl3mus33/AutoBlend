@@ -32,6 +32,9 @@
       "label": "Ruta de la instancia MO2",
       "dialogTitle": "Seleccionar carpeta de la instancia MO2"
     },
+    "mo2Profile": {
+      "label": "Perfil MO2"
+    },
     "meshBlacklist": {
       "label": "Lista negra de meshes",
       "help": "Los meshes que coincidan con una regla aquí nunca se parchean. Comodines (*) permitidos, p. ej. \"*\\glass\\*\". Clic derecho para añadir/quitar filas.",

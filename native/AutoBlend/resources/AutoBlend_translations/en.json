@@ -32,6 +32,9 @@
       "label": "MO2 Instance Path",
       "dialogTitle": "Select MO2 Instance Folder"
     },
+    "mo2Profile": {
+      "label": "MO2 Profile"
+    },
     "meshBlacklist": {
       "label": "Mesh Blacklist",
       "help": "Meshes matching a rule here are never patched. Wildcards (*) allowed, e.g. \"*\\glass\\*\". Right click to add/remove rows.",

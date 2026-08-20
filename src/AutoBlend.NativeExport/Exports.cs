@@ -60,6 +60,26 @@ public static class Exports
         return IntPtr.Zero;
     }
 
+    [UnmanagedCallersOnly(EntryPoint = "list_mo2_profiles")]
+    public static IntPtr ListMo2Profiles(IntPtr instancePathPtr)
+    {
+        // Same never-throw-across-the-boundary shape as DetectMo2Profile above.
+        try
+        {
+            var path = Marshal.PtrToStringUTF8(instancePathPtr) ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return ToNativeUtf8("[]");
+            }
+
+            return ToNativeUtf8(JsonSerializer.Serialize(Mo2InstanceReader.ListProfiles(path)));
+        }
+        catch
+        {
+            return ToNativeUtf8("[]");
+        }
+    }
+
     [UnmanagedCallersOnly(EntryPoint = "start_patch_run")]
     public static void StartPatchRun(IntPtr settingsJsonPtr)
     {

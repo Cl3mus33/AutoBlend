@@ -32,6 +32,9 @@
       "label": "Percorso istanza MO2",
       "dialogTitle": "Seleziona la cartella dell'istanza MO2"
     },
+    "mo2Profile": {
+      "label": "Profilo MO2"
+    },
     "meshBlacklist": {
       "label": "Lista nera delle mesh",
       "help": "Le mesh che corrispondono a una regola qui non vengono mai patchate. Caratteri jolly (*) consentiti, es. \"*\\glass\\*\". Clic destro per aggiungere/rimuovere righe.",

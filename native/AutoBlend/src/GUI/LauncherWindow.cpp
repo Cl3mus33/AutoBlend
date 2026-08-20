@@ -4,6 +4,9 @@
 #include "GUI/components/PGCustomListctrlChangedEvent.hpp"
 #include "util/StringUtil.hpp"
 
+#include <AutoBlend.NativeExportNE.h>
+#include <nlohmann/json.hpp>
+
 #include <wx/notebook.h>
 #include <wx/statline.h>
 
@@ -11,6 +14,15 @@ using namespace std;
 
 namespace {
 constexpr int BORDER_SIZE = 5;
+
+// Same reinterpret_cast<intptr_t> convention as ProgressWindow.cpp's own copy of these two -
+// AutoBlend.NativeExportNE.h declares every export as taking/returning intptr_t, since Exports.cs
+// never applies a [DNNE.C99Type] override.
+auto toIntPtr(const string& utf8) -> intptr_t { return reinterpret_cast<intptr_t>(utf8.c_str()); }
+auto fromIntPtr(intptr_t ptr) -> string
+{
+    return ptr == 0 ? string {} : string(reinterpret_cast<const char*>(ptr));
+}
 
 // Matches AutoBlend's WPF app accent colors, inherited from AutoSeasons' own identity - keeping
 // both shells on the same palette is the whole point of this rewrite.
@@ -140,6 +152,17 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     mo2InstanceSizer->Add(m_mo2InstancePathTextbox, 1, wxEXPAND | wxALL, BORDER_SIZE);
     mo2InstanceSizer->Add(m_mo2InstanceBrowseButton, 0, wxALL, BORDER_SIZE);
     generalSizer->Add(mo2InstanceSizer, 0, wxEXPAND);
+
+    // MO2 profile - a real picker populated from the instance's own profiles/ folder, not a
+    // hardcoded "Default" assumption. Reported directly: a user whose instance only had non-
+    // "Default" profiles got nothing but an exception from Mo2InstanceReader's constructor and no
+    // way to tell it which profile to actually use. Same always-present-but-enabled/disabled
+    // pattern as the instance path fields above.
+    m_mo2ProfileLabel = makeSectionLabel(generalPanel, ABTr("launcher.mo2Profile.label", "MO2 Profile"));
+    generalSizer->Add(m_mo2ProfileLabel, 0, wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
+
+    m_mo2ProfileChoice = new wxChoice(generalPanel, wxID_ANY);
+    generalSizer->Add(m_mo2ProfileChoice, 0, wxEXPAND | wxALL, BORDER_SIZE);
 
     // Mesh blacklist - inline editable table, same pattern as AutoSeasons' own blocklist.
     generalSizer->Add(makeSectionLabel(generalPanel, ABTr("launcher.meshBlacklist.label", "Mesh Blacklist")), 0,
@@ -343,6 +366,7 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
 
     SetSizerAndFit(mainSizer);
     updateMo2FieldState();
+    refreshMo2Profiles(initParams.mo2ProfileName);
 }
 
 void LauncherWindow::getParams(ABParams& outParams) const
@@ -368,8 +392,8 @@ void LauncherWindow::getParams(ABParams& outParams) const
     outParams.modManager
         = m_modManagerChoice->GetSelection() == 1 ? ABModManagerType::MOD_ORGANIZER_2 : ABModManagerType::NONE;
     outParams.mo2InstancePath = m_mo2InstancePathTextbox->GetValue().ToStdWstring();
-    // mo2ProfileName is intentionally not editable here - it's auto-detected from the instance's
-    // ModOrganizer.ini (selected_profile) when a patch run starts, not something users need to see.
+    const auto selectedProfile = m_mo2ProfileChoice->GetStringSelection();
+    outParams.mo2ProfileName = selectedProfile.IsEmpty() ? L"Default" : selectedProfile.ToStdWstring();
     // textureSetNamingTemplate isn't UI-editable either - carried through unchanged from whatever
     // was loaded from settings.json (see the class doc comment in LauncherWindow.hpp).
     outParams.textureSetNamingTemplate = m_textureSetNamingTemplate;
@@ -452,6 +476,7 @@ void LauncherWindow::onBrowseMo2Instance([[maybe_unused]] wxCommandEvent& event)
         this, ABTr("launcher.mo2InstancePath.dialogTitle", "Select MO2 Instance Folder"), m_mo2InstancePathTextbox->GetValue());
     if (dialog.ShowModal() == wxID_OK) {
         m_mo2InstancePathTextbox->SetValue(dialog.GetPath());
+        refreshMo2Profiles();
     }
 }
 
@@ -463,6 +488,68 @@ void LauncherWindow::updateMo2FieldState()
     m_mo2InstancePathLabel->Enable(isMo2);
     m_mo2InstancePathTextbox->Enable(isMo2);
     m_mo2InstanceBrowseButton->Enable(isMo2);
+    m_mo2ProfileLabel->Enable(isMo2);
+    m_mo2ProfileChoice->Enable(isMo2);
+}
+
+// Calls into AutoBlend.Core (via the same DNNE bridge ProgressWindow uses for the actual patch
+// run) to list every profile folder under the current MO2 Instance Path, and repopulates the
+// choice - instead of the previous silent assumption that everyone's profile is named "Default",
+// which threw a raw exception at patch-start for anyone whose instance only had other profiles.
+// preferredProfile wins the selection when present in the list (used when restoring settings.json/
+// a loaded config); otherwise falls back to the instance's own ModOrganizer.ini selected_profile
+// (detect_mo2_profile) when that's present in the list; otherwise the first entry.
+void LauncherWindow::refreshMo2Profiles(const std::wstring& preferredProfile)
+{
+    m_mo2ProfileChoice->Clear();
+
+    const auto instancePath = m_mo2InstancePathTextbox->GetValue();
+    if (instancePath.IsEmpty()) {
+        return;
+    }
+
+    const auto instancePathUtf8 = StringUtil::utf16toUTF8(instancePath.ToStdWstring());
+
+    const intptr_t profilesRawPtr = list_mo2_profiles(toIntPtr(instancePathUtf8));
+    const auto profilesJson = fromIntPtr(profilesRawPtr);
+    if (profilesRawPtr != 0) {
+        free_string(profilesRawPtr);
+    }
+
+    vector<wxString> profiles;
+    try {
+        for (const auto& entry : nlohmann::json::parse(profilesJson)) {
+            profiles.push_back(wxString::FromUTF8(entry.get<string>()));
+        }
+    } catch (const exception&) {
+        // Malformed/empty JSON (e.g. instance path doesn't resolve to anything yet while the user
+        // is still typing it by hand) - leave the choice empty rather than throwing out of a UI
+        // event handler.
+    }
+
+    for (const auto& profile : profiles) {
+        m_mo2ProfileChoice->Append(profile);
+    }
+
+    if (profiles.empty()) {
+        return;
+    }
+
+    const wxString preferred = preferredProfile.empty() ? wxString() : wxString(preferredProfile);
+    if (!preferred.IsEmpty() && m_mo2ProfileChoice->SetStringSelection(preferred)) {
+        return;
+    }
+
+    const intptr_t detectedRawPtr = detect_mo2_profile(toIntPtr(instancePathUtf8));
+    const auto detected = fromIntPtr(detectedRawPtr);
+    if (detectedRawPtr != 0) {
+        free_string(detectedRawPtr);
+    }
+    if (!detected.empty() && m_mo2ProfileChoice->SetStringSelection(wxString::FromUTF8(detected))) {
+        return;
+    }
+
+    m_mo2ProfileChoice->SetSelection(0);
 }
 
 void LauncherWindow::onLoadConfig([[maybe_unused]] wxCommandEvent& event)
@@ -502,6 +589,7 @@ void LauncherWindow::applyLoadedParams(const ABParams& params)
     m_modManagerChoice->SetSelection(params.modManager == ABModManagerType::MOD_ORGANIZER_2 ? 1 : 0);
     m_mo2InstancePathTextbox->SetValue(params.mo2InstancePath);
     updateMo2FieldState();
+    refreshMo2Profiles(params.mo2ProfileName);
     m_textureSetNamingTemplate = params.textureSetNamingTemplate;
 
     m_meshBlacklistCtrl->DeleteAllItems();

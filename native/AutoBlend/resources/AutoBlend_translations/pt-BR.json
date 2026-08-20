@@ -32,6 +32,9 @@
       "label": "Caminho da instância do MO2",
       "dialogTitle": "Selecionar pasta da instância do MO2"
     },
+    "mo2Profile": {
+      "label": "Perfil do MO2"
+    },
     "meshBlacklist": {
       "label": "Lista negra de meshes",
       "help": "Meshes que corresponderem a uma regra aqui nunca são corrigidas. Curingas (*) permitidos, ex. \"*\\glass\\*\". Clique com o botão direito para adicionar/remover linhas.",

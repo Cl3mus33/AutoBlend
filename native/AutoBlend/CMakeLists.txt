@@ -96,11 +96,18 @@ add_custom_command(
     # OutputPath controls where DNNE emits AutoBlend.NativeExportNE.lib (used by the C++ linker at
     # build time). --output (PublishDir) controls where the runtime and managed DLLs land for
     # shipping. Both point to the same directory so all artifacts end up in one place.
+    # Deliberately WITHOUT --no-restore: with a cold/deleted BaseIntermediateOutputPath, --no-restore
+    # silently skips DNNE's native-export codegen/compile step entirely (no "Generated exports
+    # written to..."/"Building native export: cl.exe..." lines, and no .NativeExportNE.{h,lib,dll}
+    # ever appear) even though the `dotnet restore` step above already populated it - confirmed
+    # directly by running this exact --no-restore command twice in a row from a cold obj/ and
+    # getting nothing both times, then running the same command without --no-restore once and
+    # getting correct output immediately. First found and fixed in SnowFixer's own equivalent step;
+    # applied here too after this project's own obj/ was cleared and hit the same failure for real.
     COMMAND dotnet publish "${NATIVEEXPORT_CSPROJ}"
         -c ${MSBUILD_CONFIGURATION}
         -r win-x64
         --self-contained true
-        --no-restore
         -p:Platform=x64
         -p:OutputPath=${NATIVEEXPORT_BIN_DIR}/
         -p:BaseIntermediateOutputPath=${NATIVEEXPORT_OBJ_DIR}/

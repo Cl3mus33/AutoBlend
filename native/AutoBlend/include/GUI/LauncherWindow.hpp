@@ -45,6 +45,8 @@ private:
     wxStaticText* m_mo2InstancePathLabel;
     wxTextCtrl* m_mo2InstancePathTextbox;
     wxButton* m_mo2InstanceBrowseButton;
+    wxStaticText* m_mo2ProfileLabel;
+    wxChoice* m_mo2ProfileChoice;
     std::wstring m_textureSetNamingTemplate;
     PGModifiableListCtrl* m_meshBlacklistCtrl;
     PGModifiableListCtrl* m_editorIdKeywordsCtrl;
@@ -65,5 +67,6 @@ private:
     void onEditAllowlistButtonPressed(wxCommandEvent& event);
     void updateListColumnWidths();
     void updateMo2FieldState();
+    void refreshMo2Profiles(const std::wstring& preferredProfile = L"");
     void applyLoadedParams(const ABParams& params);
 };

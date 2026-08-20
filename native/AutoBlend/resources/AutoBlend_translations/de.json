@@ -32,6 +32,9 @@
       "label": "MO2-Instanzpfad",
       "dialogTitle": "MO2-Instanzordner auswählen"
     },
+    "mo2Profile": {
+      "label": "MO2-Profil"
+    },
     "meshBlacklist": {
       "label": "Mesh-Sperrliste",
       "help": "Meshes, die hier auf eine Regel passen, werden nie gepatcht. Platzhalter (*) erlaubt, z. B. \"*\\glass\\*\". Rechtsklick zum Hinzufügen/Entfernen von Zeilen.",

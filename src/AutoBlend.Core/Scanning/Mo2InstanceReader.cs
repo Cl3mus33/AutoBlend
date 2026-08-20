@@ -279,6 +279,32 @@ public sealed class Mo2InstanceReader : IDisposable
     }
 
     /// <summary>
+    /// Lists every profile folder name under this instance's profiles/ directory (resolving a
+    /// custom base_directory the same way the constructor does), so the UI can offer a real
+    /// picker instead of assuming everyone's profile is named "Default" - reported by a user
+    /// whose instance only has non-default profiles, which made the constructor's own
+    /// FileNotFoundException the only feedback they got. Returns an empty list (never throws) if
+    /// the instance path is invalid or has no profiles/ folder, so callers can treat "no options"
+    /// the same as "nothing detected yet".
+    /// </summary>
+    public static List<string> ListProfiles(string instancePath)
+    {
+        var dataRoot = ResolveDataRoot(instancePath);
+        var profilesRoot = Path.Combine(dataRoot, "profiles");
+        if (!Directory.Exists(profilesRoot))
+        {
+            return new List<string>();
+        }
+
+        return Directory.EnumerateDirectories(profilesRoot)
+            .Select(Path.GetFileName)
+            .Where(name => !string.IsNullOrEmpty(name))
+            .Select(name => name!)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>
     /// Reads ModOrganizer.ini's selected_profile (the profile MO2 itself currently has active,
     /// stored as "selected_profile=@ByteArray(Name)") so the UI can default to it instead of
     /// making every user type "Default" by hand. Returns false if the ini or key isn't found.

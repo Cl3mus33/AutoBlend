@@ -5,6 +5,23 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-08-20
+
+### Added
+- MO2 Profile picker in the General tab: a dropdown listing the real profile folders under the
+  chosen MO2 Instance Path, populated on browse/instance-path change and defaulting to the
+  instance's own currently-active profile (from ModOrganizer.ini) when detected, else the first
+  entry. Reported directly: the shell previously always assumed the profile was named "Default"
+  with no way to override it, so anyone whose instance only had other profiles (a real report had
+  three, none named "Default") got nothing but a raw "No modlist.txt found for profile 'Default'"
+  exception at the start of a patch run.
+
+### Fixed
+- Build reliability only, no functional change for end users: removed `--no-restore` from the
+  native shell's own DNNE build step, which could silently skip native-export codegen entirely
+  from a cold build folder (see the identical fix already shipped for AutoBlend's sibling tool,
+  SnowFixer).
+
 ## [1.0.1] - 2026-08-20
 
 ### Fixed

@@ -32,6 +32,9 @@
       "label": "Chemin de l'instance MO2",
       "dialogTitle": "Sélectionner le dossier de l'instance MO2"
     },
+    "mo2Profile": {
+      "label": "Profil MO2"
+    },
     "meshBlacklist": {
       "label": "Liste noire de meshes",
       "help": "Les meshes correspondant à une règle ici ne sont jamais patchés. Jokers (*) autorisés, ex. \"*\\glass\\*\". Clic droit pour ajouter/supprimer des lignes.",
