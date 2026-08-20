@@ -153,7 +153,19 @@ public sealed class LandscapeFolderDetector
             if (pbrCandidate is not null && _fileProbe.Exists(pbrCandidate))
             {
                 effectiveDiffusePath = pbrCandidate;
-                (pbrNormalPath, pbrHeightPath, pbrRmaosPath) = ResolvePbrSlots(pbrCandidate);
+
+                // diffusePath can already sit inside a rule folder here - e.g. when it came from a
+                // pre-existing (non-AutoBlend-authored) Alternate Texture's own TXST, such as
+                // Vanaheimr's own hand-authored "landscape\statics\dirt02.dds" - in which case
+                // pbrCandidate above is itself statics-nested ("textures\pbr\landscape\statics\
+                // dirt02.dds"). A "statics" PBR variant only ever carries its own diffuse (verified
+                // against real PBR packs: no "_n"/"_p"/"_rmaos" siblings ever exist next to it,
+                // exactly like the non-PBR statics convention), so resolving siblings against the
+                // rule-folder-nested candidate silently found nothing every time - always falling
+                // back to the pre-existing (non-PBR, mismatched) source normal downstream. Strip the
+                // rule folder first so sibling resolution always targets the true parent PBR diffuse.
+                var pbrParentCandidate = StripRuleFolder(pbrCandidate) ?? pbrCandidate;
+                (pbrNormalPath, pbrHeightPath, pbrRmaosPath) = ResolvePbrSlots(pbrParentCandidate);
             }
         }
 
@@ -228,20 +240,54 @@ public sealed class LandscapeFolderDetector
     /// Inserts "pbr" as the segment right after "textures" - e.g.
     /// "textures\landscape\dirt02.dds" -> "textures\pbr\landscape\dirt02.dds" - matching where PBR
     /// texture packs (e.g. Vanaheimr's PBR variants) actually ship their own content: a separate,
-    /// parallel location, not an in-place override of the vanilla path. Returns null if the path is
-    /// already pbr-prefixed (nothing to swap) or too short to have a second segment.
+    /// parallel location, not an in-place override of the vanilla path. Returns the path unchanged
+    /// if it's already pbr-prefixed - this happens whenever the incoming diffuse came from an
+    /// EXISTING (non-AutoBlend-authored) Alternate Texture's own TXST rather than a mesh's plain
+    /// embedded default, e.g. Vanaheimr's own PBR-pack ESP overriding the vanilla landscape TXST in
+    /// place to point directly at "PBR\Landscape\Dirt02.dds" - that already IS the PBR diffuse
+    /// candidate, nothing to swap in. Previously this returned null instead, which skipped
+    /// ResolvePbrSlots entirely for every already-PBR-prefixed diffuse - silently leaving
+    /// Normal/Height/RMAOS unresolved (falling back to the pre-PBR source normal, mismatched
+    /// against the PBR diffuse) even though the real "_n"/"_p"/"_rmaos" siblings existed on disk.
+    /// Only returns null when there's no second segment to work with at all.
     /// </summary>
     private static string? ToPbrPath(string texturesPrefixedPath)
     {
         var segments = texturesPrefixedPath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length < 2 || segments[1].Equals(PbrSegment, StringComparison.OrdinalIgnoreCase))
+        if (segments.Length < 2)
         {
             return null;
+        }
+
+        if (segments[1].Equals(PbrSegment, StringComparison.OrdinalIgnoreCase))
+        {
+            return texturesPrefixedPath;
         }
 
         var pbrSegments = new List<string>(segments.Length + 1) { segments[0], PbrSegment };
         pbrSegments.AddRange(segments.Skip(1));
         return string.Join('\\', pbrSegments);
+    }
+
+    /// <summary>
+    /// Removes the first path segment (other than the filename itself) matching any configured
+    /// rule's FolderName (statics/blending/blend), e.g. "textures\pbr\landscape\statics\dirt02.dds"
+    /// -&gt; "textures\pbr\landscape\dirt02.dds". Returns null if no segment matches - meaning the
+    /// path wasn't already rule-folder-nested, so the caller should keep using it as-is.
+    /// </summary>
+    private string? StripRuleFolder(string path)
+    {
+        var segments = path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
+        for (var i = 0; i < segments.Count - 1; i++)
+        {
+            if (_rules.Any(r => segments[i].Equals(r.FolderName, StringComparison.OrdinalIgnoreCase)))
+            {
+                segments.RemoveAt(i);
+                return string.Join('\\', segments);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

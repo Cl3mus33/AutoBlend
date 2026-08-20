@@ -5,6 +5,20 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-20
+
+### Fixed
+- "Generate PBR slots": Normal/Height/RMAOS were silently left unset (falling back to a
+  mismatched pre-PBR normal, or nothing at all) whenever the diffuse being resolved was already
+  PBR-prefixed - which happens whenever an existing (non-AutoBlend-authored) Alternate Texture
+  already points at a PBR-authored TextureSet, e.g. a PBR texture pack overriding a vanilla
+  landscape TXST record in place. `ToPbrPath` returned `null` in that case ("nothing to swap"),
+  which skipped sibling-slot resolution entirely even though the real `_n`/`_p`/`_rmaos` files
+  existed right next to the diffuse on disk. Verified against a real modlist: regenerating after
+  the fix correctly populated all 4 slots (Diffuse/Normal/Height/RMAOS) consistently across every
+  derived TextureSet, where previously Height/RMAOS were always empty and Normal pointed at an
+  unrelated, stale texture.
+
 ## [1.0.0] - 2026-08-14
 
 First release.
