@@ -5,6 +5,20 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-08-21
+
+### Fixed
+- A user on 1.0.4 still hit "Absolute path did not have Data folder within it." aborting the
+  whole run, despite 1.0.3's fix for that exact error - the earlier fix only caught it around one
+  specific call (deriving a new TextureSet), but Mutagen can throw the same validation error from
+  other places a malformed third-party path first gets touched, not just that one. The per-mesh
+  processing loop in `PatchOrchestrator` now has a broader catch-and-continue around each mesh's
+  entire record-processing pass: any unexpected failure (this one, a corrupt mesh nifly can't
+  recover from, or similar) is logged as a warning and only skips that one mesh, instead of
+  aborting every other mesh's already-completed work. Verified: full regression run against a
+  real, large modlist produces zero new warnings from this broader catch (identical counts to
+  before), confirming it only activates on genuine unexpected failures.
+
 ## [1.0.4] - 2026-08-20
 
 ### Fixed

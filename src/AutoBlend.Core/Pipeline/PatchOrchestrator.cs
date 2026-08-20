@@ -213,6 +213,8 @@ public sealed class PatchOrchestrator
             foreach (var (meshPath, candidateFormKeys) in candidatesByMesh)
             {
                 meshCounter++;
+                try
+                {
                 // Texture generation happens lazily inside folderDetector.Detect() below, as part
                 // of this same per-mesh pass - folding its running count into this same status line
                 // (rather than a separate phase) is what makes it visible during the run at all,
@@ -459,6 +461,20 @@ public sealed class PatchOrchestrator
                             altTexAssigned++;
                         }
                     }
+                }
+                }
+                catch (Exception ex)
+                {
+                    // Anything unexpected while processing one mesh's own records (malformed
+                    // third-party plugin data Mutagen only actually validates once a record's
+                    // field is first touched, a corrupt mesh nifly can't fully recover from, etc.)
+                    // must not abort every OTHER mesh's already-computed work. The specific,
+                    // predictable failure modes already have their own narrower catches above
+                    // (mesh not found, unresolvable existing TextureSet, malformed derived-texture
+                    // path); this is the backstop for whatever isn't one of those yet - matches the
+                    // same "left untouched"/"skipped" resilience pattern, just at mesh granularity
+                    // instead of per-record.
+                    warnings.Add($"Unexpected error processing '{meshPath}', skipped: {ex.Message}");
                 }
             }
         }
