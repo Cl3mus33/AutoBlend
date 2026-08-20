@@ -5,6 +5,22 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-08-21
+
+### Fixed
+- Found the actual root cause behind the recurring "[ERROR] Absolute path did not have Data
+  folder within it." reports, which 1.0.3 and 1.0.5's broader catches still didn't reach: a
+  user's full error log showed the crash landing right after "Scanning Static and MoveableStatic
+  records..." starts - well before either of those fixes' coverage. `Model.File` is itself a
+  Mutagen AssetLink, and reading `.GivenPath` on ANY Static/MoveableStatic record in the entire
+  load order - not just ones AutoBlend derives anything for - throws this exact exception if that
+  record's own mesh path is a malformed absolute path (the same class of authoring mistake as the
+  texture paths fixed in 1.0.4/1.0.5, just on the mesh reference this time). Confirmed directly:
+  assigning a `Model` a malformed absolute `File` path and reading `GivenPath` back throws the
+  identical exception. The initial record-scanning loop now catches this per-record and skips just
+  that one record, instead of aborting before a single mesh is even processed. Regression-verified
+  against a real, large modlist: identical counts to before, zero new warnings.
+
 ## [1.0.5] - 2026-08-21
 
 ### Fixed

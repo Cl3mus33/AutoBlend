@@ -187,14 +187,38 @@ public sealed class PatchOrchestrator
             list.Add(formKey);
         }
 
+        // The actual root cause behind repeated "[ERROR] Absolute path did not have Data folder
+        // within it." reports, finally pinned down: Model.File is itself a Mutagen AssetLink -
+        // reading .GivenPath on a record whose OWN mesh path is a malformed absolute path (some
+        // mod author's CK setup, same class of authoring mistake as the malformed texture paths
+        // fixed in 1.0.4/1.0.5) throws this exact exception, for ANY Static/MoveableStatic record
+        // in the ENTIRE load order - not just ones AutoBlend cares about - and it happens here,
+        // during this initial scan, well before the per-mesh loop 1.0.5 wrapped. Confirmed directly:
+        // assigning a Model a malformed absolute File path and reading GivenPath back throws the
+        // identical exception. One bad record from an unrelated mod must not abort scanning every
+        // other record.
         foreach (var stat in env.LoadOrder.PriorityOrder.WinningOverrides<IStaticGetter>())
         {
-            ScanRecord(stat.FormKey, stat.EditorID, stat.Model?.File.GivenPath, RecordKind.Static);
+            try
+            {
+                ScanRecord(stat.FormKey, stat.EditorID, stat.Model?.File.GivenPath, RecordKind.Static);
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Skipped Static record {stat.FormKey} - could not read its own mesh path: {ex.Message}");
+            }
         }
 
         foreach (var mstt in env.LoadOrder.PriorityOrder.WinningOverrides<IMoveableStaticGetter>())
         {
-            ScanRecord(mstt.FormKey, mstt.EditorID, mstt.Model?.File.GivenPath, RecordKind.MoveableStatic);
+            try
+            {
+                ScanRecord(mstt.FormKey, mstt.EditorID, mstt.Model?.File.GivenPath, RecordKind.MoveableStatic);
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Skipped MoveableStatic record {mstt.FormKey} - could not read its own mesh path: {ex.Message}");
+            }
         }
 
         Report($"{recordsScanned} Static/MoveableStatic record(s) scanned, {candidatesByMesh.Count} distinct mesh(es) not blacklisted.");
