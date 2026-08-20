@@ -41,8 +41,16 @@ public sealed class DerivedTextureSetFactory
             // possibly-null existing reference.
             Diffuse = new AssetLink<SkyrimTextureAssetType>(detection.DerivedDiffusePath),
             NormalOrGloss = ToAssetLink(detection.PbrNormalPath ?? source.NormalOrGloss),
-            Height = ToAssetLink(detection.PbrHeightPath),
-            EnvironmentMaskOrSubsurfaceTint = ToAssetLink(detection.PbrRmaosPath),
+            // Height/EnvironmentMaskOrSubsurfaceTint previously ONLY ever came from PBR detection,
+            // with no fallback to the source TextureSet's own values the way NormalOrGloss already
+            // had - silently dropping both whenever generatePbrSlots was off or no PBR sibling was
+            // found. Reported as purple/broken textures downstream of a complex-material patcher:
+            // verified directly that even vanilla Skyrim's own "Landscape\Dirt02.dds" TXST record
+            // already populates both (Dirt02_p.dds/Dirt02_m.dds - complex material shipped in the
+            // base game itself), so this dropped real, commonly-populated data on almost every
+            // derived TextureSet, not just PBR/complex-material texture packs specifically.
+            Height = ToAssetLink(detection.PbrHeightPath ?? source.Height),
+            EnvironmentMaskOrSubsurfaceTint = ToAssetLink(detection.PbrRmaosPath ?? source.EnvironmentMaskOrSubsurfaceTint),
         };
 
         _patchMod.TextureSets.Add(derived);

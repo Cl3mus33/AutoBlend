@@ -5,6 +5,27 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-08-20
+
+### Fixed
+- Derived "statics"/"blending"/"blend" TextureSets always dropped Height and
+  EnvironmentMaskOrSubsurfaceTint (the complex-material parallax/environment-mask slots), even
+  outside PBR mode, since those two slots only ever came from PBR detection with no fallback to
+  the source TextureSet's own values - unlike NormalOrGloss, which already had this fallback.
+  Reported as purple/broken textures after running AutoBlend + a complex-material patcher.
+  Verified directly against real data: even vanilla Skyrim's own "Landscape\Dirt02.dds" TXST
+  record already populates both slots (complex material shipped in the base game itself), and a
+  user's own real generation output showed exactly this - Diffuse/NormalOrGloss correct, Height
+  and EnvironmentMaskOrSubsurfaceTint both empty. Now falls back to the source TextureSet's own
+  Height/EnvironmentMaskOrSubsurfaceTint whenever no PBR sibling was found, matching the pattern
+  already used for NormalOrGloss.
+- "Generate PBR slots" never found a PBR variant that ships already nested inside a
+  "statics"/"blending"/"blend" folder with no plain non-nested PBR override at all (e.g. Vanaheimr
+  PBR) - only the single non-nested candidate was ever checked, so PBR detection silently failed
+  and fell back to whatever non-PBR sibling happened to exist instead, even with the setting
+  checked. Reported directly. Reproduced exactly with a synthetic probe; now checks every
+  configured rule folder's own PBR-nested location too before giving up on PBR for a texture.
+
 ## [1.0.3] - 2026-08-20
 
 ### Fixed

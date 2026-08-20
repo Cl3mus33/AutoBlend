@@ -167,6 +167,32 @@ public sealed class LandscapeFolderDetector
                 var pbrParentCandidate = StripRuleFolder(pbrCandidate) ?? pbrCandidate;
                 (pbrNormalPath, pbrHeightPath, pbrRmaosPath) = ResolvePbrSlots(pbrParentCandidate);
             }
+            else if (pbrCandidate is not null)
+            {
+                // Some PBR texture packs (Vanaheimr PBR, reported directly) never ship a plain,
+                // non-nested PBR override for a given texture - only the already-alpha-blended
+                // "statics"/"blending"/"blend" PBR variant exists on disk, with no non-nested PBR
+                // sibling at all. Checking only the plain candidate above meant "Generate PBR
+                // slots" silently fell through to whatever NON-PBR statics sibling happened to
+                // exist instead (wrong material - purple/missing textures once a downstream
+                // complex-material patcher processed it) even though the real PBR statics texture
+                // was right there on disk. Reproduced directly: a synthetic probe with only
+                // "textures\pbr\landscape\statics\dirt02.dds" and a coincidental non-PBR
+                // "textures\landscape\statics\dirt02.dds" resolved to the non-PBR one before this
+                // fix. Check every configured rule folder's own PBR-nested location too before
+                // giving up on PBR for this texture - first match wins, in configured rule order.
+                foreach (var rule in _rules)
+                {
+                    var nestedPbrCandidate = InsertRuleFolder(pbrCandidate, rule.FolderName);
+                    if (!_fileProbe.Exists(nestedPbrCandidate))
+                    {
+                        continue;
+                    }
+
+                    var (normal, height, rmaos) = ResolvePbrSlots(pbrCandidate);
+                    return new LandscapeFolderDetection(rule, nestedPbrCandidate, normal, height, rmaos);
+                }
+            }
         }
 
         var segments = effectiveDiffusePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -267,6 +293,22 @@ public sealed class LandscapeFolderDetector
         var pbrSegments = new List<string>(segments.Length + 1) { segments[0], PbrSegment };
         pbrSegments.AddRange(segments.Skip(1));
         return string.Join('\\', pbrSegments);
+    }
+
+    /// <summary>
+    /// Same landscape-anchored-vs-immediate-parent insertion rule as the main matching loop below,
+    /// factored out so the PBR-nested-candidate check above can probe a specific rule folder
+    /// without duplicating that logic inline.
+    /// </summary>
+    private static string InsertRuleFolder(string path, string ruleFolderName)
+    {
+        var segments = path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
+        var landscapeIndex = segments.FindIndex(s => s.Equals(LandscapeSegment, StringComparison.OrdinalIgnoreCase));
+        var insertIndex = landscapeIndex >= 0 && landscapeIndex < segments.Count - 1
+            ? landscapeIndex + 1
+            : segments.Count - 1;
+        segments.Insert(insertIndex, ruleFolderName);
+        return string.Join('\\', segments);
     }
 
     /// <summary>
