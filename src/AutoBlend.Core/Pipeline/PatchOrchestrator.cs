@@ -521,6 +521,10 @@ public sealed class PatchOrchestrator
         {
             Report($"Auto-generated {textureGenerator.GeneratedCount} missing statics/blending texture(s)"
                 + (textureGenerator.FailedCount > 0 ? $" ({textureGenerator.FailedCount} attempt(s) failed - see log)." : "."));
+            if (textureGenerator.MirroredJsonCount > 0)
+            {
+                Report($"Mirrored {textureGenerator.MirroredJsonCount} PBRNifPatcher json config(s) for generated/nested PBR variant(s).");
+            }
             warnings.AddRange(textureGenerator.Diagnostics);
         }
 

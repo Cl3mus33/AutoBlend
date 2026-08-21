@@ -147,6 +147,7 @@ public sealed class LandscapeFolderDetector
         string? pbrNormalPath = null;
         string? pbrHeightPath = null;
         string? pbrRmaosPath = null;
+        string? pbrParentPath = null;
         var usingPbr = false;
         if (_generatePbrSlots)
         {
@@ -167,6 +168,7 @@ public sealed class LandscapeFolderDetector
                 // back to the pre-existing (non-PBR, mismatched) source normal downstream. Strip the
                 // rule folder first so sibling resolution always targets the true parent PBR diffuse.
                 var pbrParentCandidate = StripRuleFolder(pbrCandidate) ?? pbrCandidate;
+                pbrParentPath = pbrParentCandidate;
                 (pbrNormalPath, pbrHeightPath, pbrRmaosPath) = ResolvePbrSlots(pbrParentCandidate);
             }
             else if (pbrCandidate is not null)
@@ -192,6 +194,7 @@ public sealed class LandscapeFolderDetector
                     }
 
                     var (normal, height, rmaos) = ResolvePbrSlots(pbrCandidate);
+                    _textureGenerator?.TryMirrorPbrJson(pbrCandidate, nestedPbrCandidate);
                     return new LandscapeFolderDetection(rule, nestedPbrCandidate, normal, height, rmaos);
                 }
             }
@@ -228,6 +231,10 @@ public sealed class LandscapeFolderDetector
             var immediateRule = _rules.FirstOrDefault(r => segments[insertIndex].Equals(r.FolderName, StringComparison.OrdinalIgnoreCase));
             if (immediateRule is not null)
             {
+                if (usingPbr && pbrParentPath is not null)
+                {
+                    _textureGenerator?.TryMirrorPbrJson(pbrParentPath, effectiveDiffusePath);
+                }
                 return new LandscapeFolderDetection(immediateRule, effectiveDiffusePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
             }
         }
@@ -240,6 +247,10 @@ public sealed class LandscapeFolderDetector
 
             if (_fileProbe.Exists(candidatePath))
             {
+                if (usingPbr)
+                {
+                    _textureGenerator?.TryMirrorPbrJson(effectiveDiffusePath, candidatePath);
+                }
                 return new LandscapeFolderDetection(rule, candidatePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
             }
 
@@ -257,6 +268,10 @@ public sealed class LandscapeFolderDetector
                 && WildcardMatcher.MatchesAny(vanillaDiffusePath, _autoGenerateAllowlist);
             if (canGenerate && _textureGenerator is not null && _textureGenerator.TryGenerate(effectiveDiffusePath, candidatePath, usingPbr, out _))
             {
+                if (usingPbr)
+                {
+                    _textureGenerator.TryMirrorPbrJson(effectiveDiffusePath, candidatePath);
+                }
                 return new LandscapeFolderDetection(rule, candidatePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
             }
         }

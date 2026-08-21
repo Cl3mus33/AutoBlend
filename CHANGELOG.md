@@ -5,6 +5,26 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-08-21
+
+### Added
+- AutoBlend now mirrors a PBRNifPatcher json config for derived/generated PBR "statics"/
+  "blending"/"blend" texture variants, when the texture pack itself didn't already ship one that
+  matches: PG Patcher (which must always run last) discovers its per-texture material parameters
+  (parallax, roughness, subsurface, glint, multilayer/coat data, explicit slot overrides, etc.)
+  from these jsons, matched against a shape's diffuse path by a suffix search over the json's own
+  "texture"/"match_diffuse" field - not by the json's own file location. Packs that key their json
+  with just the bare filename (e.g. Vanaheimr's own convention: `"texture": "dirt02"`) already
+  match any nesting depth and need nothing extra. Packs that qualify the path with a folder (e.g.
+  TomatoRim PBR's `"texture": "landscape\\Dirt02"`) do NOT match a "statics"/"blend"-nested variant
+  - PG Patcher then falls all the way back to a bare "mark as PBR, no parameters" default for that
+  texture, losing every author-tuned value. AutoBlend now clones the parent texture's own json
+  (every material parameter and explicit slot override kept exactly as authored) and redirects
+  just the "texture"/"match_diffuse" field to the resolved variant, so PG Patcher applies its full,
+  normal patch instead. Verified directly against a real modlist: correctly skipped Vanaheimr's own
+  bare-filename-keyed jsons (nothing to do) and mirrored 8 real cases from other packs, preserving
+  glint/multilayer/coat parameters and explicit slot overrides unchanged.
+
 ## [1.0.7] - 2026-08-21
 
 ### Added
