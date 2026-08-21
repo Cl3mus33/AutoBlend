@@ -40,6 +40,16 @@ public sealed class SettingsService
             settings.LandscapeFolderRules.Add(new LandscapeFolderRule("blend", "Blend"));
         }
 
+        // Same reasoning as the "blend" rule backfill above: road-texture-replacer mods (Simplest
+        // Roads, Simply Dirt Roads) reuse an ordinary landscape texture's diffuse on their own road
+        // meshes, which AutoBlend can't distinguish from a real landscape mesh sharing that same
+        // texture - producing malformed derived paths and wrong texture assignments on road meshes.
+        // A settings.json saved before this fix needs it backfilled once too.
+        if (!settings.MeshBlacklist.Any(p => p.Equals(@"*\roads\*", StringComparison.OrdinalIgnoreCase)))
+        {
+            settings.MeshBlacklist.Add(@"*\roads\*");
+        }
+
         return settings;
     }
 

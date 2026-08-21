@@ -49,6 +49,7 @@ public sealed class PatcherSettings
         @"*\ice\*",
         @"*\trees\*",
         @"*\actors\*",
+        @"*\roads\*",
     };
 
     /// <summary>

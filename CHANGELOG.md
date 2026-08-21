@@ -5,6 +5,18 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-08-21
+
+### Fixed
+- Added `*\roads\*` to the default Mesh Blacklist. Road-texture-replacer mods (Simplest Roads,
+  Simply Dirt Roads, reported directly) reuse an ordinary landscape texture's diffuse (e.g.
+  Dirt02.dds, FallForestDirt01.dds) directly on their own road meshes instead of shipping a
+  dedicated one. AutoBlend had no way to tell that reuse apart from a real landscape mesh sharing
+  the same texture, so it patched road meshes as if they were landscape ones - producing malformed
+  derived texture paths and wrong (e.g. snow) texture assignments on roads. An existing
+  `settings.json` saved before this fix gets the new rule appended automatically on next load, same
+  as every previous default-list addition - nothing to reconfigure by hand.
+
 ## [1.0.8] - 2026-08-21
 
 ### Added

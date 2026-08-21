@@ -47,7 +47,7 @@ struct ABParams {
         { L"blend", L"Blend" },
     };
 
-    std::vector<std::wstring> meshBlacklist { LR"(*\glass\*)", LR"(*\ice\*)" };
+    std::vector<std::wstring> meshBlacklist { LR"(*\glass\*)", LR"(*\ice\*)", LR"(*\roads\*)" };
     std::vector<std::wstring> editorIdBlacklistKeywords { L"ice", L"frozen", L"glass", L"unique" };
 
     std::wstring textureSetNamingTemplate = L"{Type}{Name}";

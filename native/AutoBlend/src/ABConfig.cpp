@@ -118,6 +118,20 @@ auto ABConfig::loadFrom(const filesystem::path& configFilePath) -> ABParams
             for (const auto& item : configJ["MeshBlacklist"]) {
                 params.meshBlacklist.push_back(StringUtil::utf8toUTF16(item.get<string>()));
             }
+
+            // Road-texture-replacer mods (Simplest Roads, Simply Dirt Roads, reported directly)
+            // reuse an ordinary landscape texture's diffuse (e.g. Dirt02.dds) on their own road
+            // meshes instead of a dedicated one. AutoBlend can't tell that reuse apart from a real
+            // landscape mesh sharing the same texture, so it patched road meshes as if they were
+            // landscape ones - producing malformed derived paths and wrong (e.g. snow) texture
+            // assignments. Same backfill pattern as the "blend" rule above - a settings.json saved
+            // before this fix only has the old two entries, so an existing user's file needs this
+            // appended once too, not just fresh installs.
+            const bool hasRoadsRule = std::any_of(params.meshBlacklist.begin(), params.meshBlacklist.end(),
+                [](const std::wstring& pattern) { return _wcsicmp(pattern.c_str(), LR"(*\roads\*)") == 0; });
+            if (!hasRoadsRule) {
+                params.meshBlacklist.push_back(LR"(*\roads\*)");
+            }
         }
         if (configJ.contains("EditorIdBlacklistKeywords")) {
             params.editorIdBlacklistKeywords.clear();
