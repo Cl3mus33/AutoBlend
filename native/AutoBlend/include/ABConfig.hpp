@@ -120,13 +120,18 @@ struct ABParams {
  */
 class ABConfig {
 public:
-    static auto load() -> ABParams;
-    static void save(const ABParams& params);
+    /// @brief Loads settings.json from beside the running exe (exeDir) - each modlist's own
+    /// dedicated AutoBlend copy (the real, established deployment convention: a separate "AutoBlend"
+    /// mod folder per MO2 instance) then keeps its own settings automatically, with no cross-modlist
+    /// collision and nothing for the user to save/load by hand. Falls back to defaults if that
+    /// file doesn't exist yet (first run for this copy).
+    static auto load(const std::filesystem::path& exeDir) -> ABParams;
+    /// @brief Saves settings.json beside the running exe (exeDir) - see load().
+    static void save(const std::filesystem::path& exeDir, const ABParams& params);
 
     /// @brief Loads params from an arbitrary JSON file, e.g. a user-picked profile via "Load
-    /// Config...". Lets one shared AutoBlend install (outside any one modlist) keep separate
-    /// settings per use case via saved JSON files, instead of relying on a dedicated per-modlist
-    /// copy of the exe for isolation - mirrors PGPatcher's/AutoSeasons' own load/save pattern.
+    /// Config...". Still useful for named presets within one modlist (e.g. different output
+    /// configurations to switch between), even though per-modlist isolation is now automatic.
     static auto loadFrom(const std::filesystem::path& configFilePath) -> ABParams;
     /// @brief Saves params to an arbitrary JSON file, e.g. via "Save Config As...".
     static void saveTo(const std::filesystem::path& configFilePath, const ABParams& params);
@@ -136,5 +141,5 @@ public:
     static auto toJson(const ABParams& params) -> nlohmann::json;
 
 private:
-    static auto getConfigPath() -> std::filesystem::path;
+    static auto getConfigPath(const std::filesystem::path& exeDir) -> std::filesystem::path;
 };

@@ -44,8 +44,10 @@ public sealed class PatchOrchestrator
     }
 
     /// <summary>One shape with NiAlphaProperty found on a mesh, plus what its own embedded
-    /// (no-override) diffuse resolves to, if anything.</summary>
-    private sealed record AlphaShape(int ShapeIndex, string EmbeddedDiffuse, LandscapeFolderDetection? EmbeddedDetection, SourceTexturePaths EmbeddedSlots);
+    /// (no-override) diffuse resolves to, if anything, and whether that shape's alpha mode is
+    /// already blend (vs. test) - used to recognize a mesh some OTHER mod already fully converted
+    /// itself (see the "already alpha-blended" check in ClassifyRecord).</summary>
+    private sealed record AlphaShape(int ShapeIndex, string EmbeddedDiffuse, LandscapeFolderDetection? EmbeddedDetection, SourceTexturePaths EmbeddedSlots, bool AlreadyAlphaBlended);
 
     /// <summary>What one record wants done to one shape of a shared mesh.</summary>
     private sealed record ShapeTreatment(ShapeTreatmentKind Kind, int ShapeIndex, LandscapeFolderDetection? Detection, SourceTexturePaths? Source);
@@ -296,8 +298,16 @@ public sealed class PatchOrchestrator
                             continue;
                         }
 
+                        var alreadyAlphaBlended = false;
+                        var alphaProperty = readNif.GetAlphaProperty(shape);
+                        if (alphaProperty is not null)
+                        {
+                            alreadyAlphaBlended = NiAlphaFlags.IsAlphaBlendEnabled(alphaProperty.flags)
+                                && !NiAlphaFlags.IsAlphaTestEnabled(alphaProperty.flags);
+                        }
+
                         var detection = folderDetector.Detect(slots.Diffuse);
-                        alphaShapes[shape.name.get()] = new AlphaShape(shapeIndex, slots.Diffuse, detection, slots);
+                        alphaShapes[shape.name.get()] = new AlphaShape(shapeIndex, slots.Diffuse, detection, slots, alreadyAlphaBlended);
                     }
                 }
 
@@ -584,7 +594,27 @@ public sealed class PatchOrchestrator
             }
             else if (alphaShape.EmbeddedDetection is not null)
             {
-                result[shapeName] = new ShapeTreatment(ShapeTreatmentKind.BaseDerived, alphaShape.ShapeIndex, alphaShape.EmbeddedDetection, alphaShape.EmbeddedSlots);
+                // If this shape is ALREADY alpha-blended AND its embedded diffuse already IS the
+                // resolved statics/blending/blend variant (Detect() hit the "already inside a rule
+                // folder" case, meaning nothing would actually change), there is nothing left for
+                // AutoBlend to do - some other mod (e.g. a landscape pack that ships its own
+                // pre-blended custom mesh, overriding Model.File directly rather than via an ESP
+                // AlternateTexture) already fully did this itself. Duplicating and renaming the
+                // mesh anyway (every BaseDerived shape gets a "_blend" physical copy) only risks
+                // breaking a downstream tool that expects to still find/patch the ORIGINAL mesh
+                // reference - reported directly by a user running PGPatcher after AutoBlend, where
+                // AutoBlend's own renamed duplicate was no longer recognized as patchable and ended
+                // up missing whatever PGPatcher would have added. Leaving it Untouched here means
+                // the record keeps pointing at whatever mesh it already had - unchanged.
+                var alreadyDone = alphaShape.AlreadyAlphaBlended
+                    && string.Equals(
+                        alphaShape.EmbeddedDiffuse.Replace('/', '\\'),
+                        alphaShape.EmbeddedDetection.DerivedDiffusePath.Replace('/', '\\'),
+                        StringComparison.OrdinalIgnoreCase);
+
+                result[shapeName] = alreadyDone
+                    ? new ShapeTreatment(ShapeTreatmentKind.Untouched, alphaShape.ShapeIndex, null, null)
+                    : new ShapeTreatment(ShapeTreatmentKind.BaseDerived, alphaShape.ShapeIndex, alphaShape.EmbeddedDetection, alphaShape.EmbeddedSlots);
             }
             else
             {

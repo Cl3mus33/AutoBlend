@@ -147,12 +147,14 @@ public sealed class LandscapeFolderDetector
         string? pbrNormalPath = null;
         string? pbrHeightPath = null;
         string? pbrRmaosPath = null;
+        var usingPbr = false;
         if (_generatePbrSlots)
         {
             var pbrCandidate = ToPbrPath(vanillaDiffusePath);
             if (pbrCandidate is not null && _fileProbe.Exists(pbrCandidate))
             {
                 effectiveDiffusePath = pbrCandidate;
+                usingPbr = true;
 
                 // diffusePath can already sit inside a rule folder here - e.g. when it came from a
                 // pre-existing (non-AutoBlend-authored) Alternate Texture's own TXST, such as
@@ -253,7 +255,7 @@ public sealed class LandscapeFolderDetector
             // variant doesn't actually make sense for), so this is opt-in per texture, not blanket.
             var canGenerate = rule.FolderName.Equals(GeneratableFolderName, StringComparison.OrdinalIgnoreCase)
                 && WildcardMatcher.MatchesAny(vanillaDiffusePath, _autoGenerateAllowlist);
-            if (canGenerate && _textureGenerator is not null && _textureGenerator.TryGenerate(effectiveDiffusePath, candidatePath, out _))
+            if (canGenerate && _textureGenerator is not null && _textureGenerator.TryGenerate(effectiveDiffusePath, candidatePath, usingPbr, out _))
             {
                 return new LandscapeFolderDetection(rule, candidatePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
             }

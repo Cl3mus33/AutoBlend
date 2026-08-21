@@ -138,7 +138,7 @@ auto runGUI(const filesystem::path& exePath) -> int
         ShowWindow(consoleWindow, SW_HIDE);
     }
 
-    auto params = ABConfig::load();
+    auto params = ABConfig::load(exePath);
     startupLog("runGUI: settings loaded");
     if (params.outputLocation.empty()) {
         params.outputLocation = (exePath / "AutoBlend_Output").wstring();
@@ -191,7 +191,7 @@ auto runGUI(const filesystem::path& exePath) -> int
     } while (launcherResult == LauncherWindow::RESULT_RELAUNCH);
 
     if (launcherResult == LauncherWindow::RESULT_RESTART) {
-        ABConfig::save(params);
+        ABConfig::save(exePath, params);
 
         // Respawn a fresh process so wx's MSW dark mode support starts clean with the new theme -
         // see LauncherWindow::onThemeChanged() for why an in-process relaunch isn't reliable here.
@@ -227,7 +227,7 @@ auto runGUI(const filesystem::path& exePath) -> int
         return 0;
     }
 
-    ABConfig::save(params);
+    ABConfig::save(exePath, params);
 
     auto* progress = new ProgressWindow(params, exePath); // NOLINT(cppcoreguidelines-owning-memory)
     progress->ShowModal();

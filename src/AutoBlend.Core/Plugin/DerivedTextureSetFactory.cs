@@ -30,9 +30,20 @@ public sealed class DerivedTextureSetFactory
 
     public TextureSet CreateDerived(SourceTexturePaths source, LandscapeFolderDetection detection)
     {
+        // source.SourceName is the WINNING TextureSet's own EditorID when the shape's diffuse came
+        // from an existing Alternate Texture (as opposed to a mesh's plain embedded default) - and
+        // that TXST can itself already be named after the rule folder (e.g. Vanaheimr's own
+        // "StaticsRocks01" for a texture they already ship pre-blended). The default naming
+        // template ("{Type}{Name}") then doubles the type label up front - "StaticsStaticsRocks01"
+        // - reported directly. Strip a leading, already-present type label from the name first so
+        // the template's own "{Type}" doesn't repeat it.
+        var effectiveSourceName = source.SourceName.StartsWith(detection.Rule.TypeLabel, StringComparison.OrdinalIgnoreCase)
+            ? source.SourceName[detection.Rule.TypeLabel.Length..]
+            : source.SourceName;
+
         var derivedName = _namingTemplate
             .Replace("{Type}", detection.Rule.TypeLabel)
-            .Replace("{Name}", source.SourceName);
+            .Replace("{Name}", effectiveSourceName);
 
         var derived = new TextureSet(_patchMod, derivedName)
         {

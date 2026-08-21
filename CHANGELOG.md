@@ -5,6 +5,34 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-08-21
+
+### Added
+- `settings.json` now lives beside the running exe instead of a single shared
+  `%APPDATA%\AutoBlend\settings.json` - each modlist's own dedicated AutoBlend copy (the real,
+  established deployment convention: a separate "AutoBlend" mod folder per MO2 instance) now keeps
+  its own settings automatically, with nothing to save/load by hand when switching between
+  modlists. First run for a given copy falls back to the old shared location once (so an existing
+  user's values carry forward instead of appearing blank) without ever writing back to it.
+
+### Fixed
+- Auto-generated texture compression always recompressed to BC7 regardless of what the texture was
+  for - correct for vanilla/complex-material diffuses, but wrong for PBR ones, which need BC1 (sRGB,
+  not linear). Reported directly as part of investigating purple/wrong rendering on PBR texture
+  packs. `MissingTextureGenerator`/`AutoBlendTexTools` now select the target format based on
+  whether the source was resolved via PBR detection.
+- Derived TextureSet EditorIDs could double the rule folder's type label - e.g.
+  "StaticsStaticsRocks01" - whenever the shape's diffuse came from an existing Alternate Texture
+  whose own TextureSet was already named after the rule folder (common with landscape packs that
+  ship their own pre-blended, already-named TXST records, e.g. Vanaheimr PBR's own
+  "StaticsRocks01"). Cosmetic only, but confirmed directly against a real generation's own output.
+- A shape that some OTHER mod already fully alpha-blended itself (own custom mesh, own already-
+  blend-mode alpha property, embedded diffuse already the resolved statics/blending/blend variant)
+  still got duplicated and renamed by AutoBlend every time, even though nothing would actually
+  change - reported as a possible cause of a downstream complex-material/PBR patcher no longer
+  recognizing (and therefore not re-processing) AutoBlend's own renamed output. Shapes with nothing
+  left to do are now left fully untouched instead.
+
 ## [1.0.6] - 2026-08-21
 
 ### Fixed

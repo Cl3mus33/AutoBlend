@@ -28,7 +28,7 @@ namespace AutoBlend.Core.Scanning;
 public sealed class MissingTextureGenerator
 {
     [DllImport("AutoBlendTexTools.dll", CharSet = CharSet.Unicode)]
-    private static extern int ab_strip_alpha_to_opaque(string srcPath, string dstPath);
+    private static extern int ab_strip_alpha_to_opaque(string srcPath, string dstPath, int isPbr);
 
     private readonly IGameFileProbe _fileProbe;
     private readonly string _outputLocation;
@@ -58,12 +58,15 @@ public sealed class MissingTextureGenerator
     /// Generates an opaque copy of <paramref name="sourceDiffusePath"/> (a path relative to Data,
     /// e.g. "textures\landscape\rocks01.dds") at <paramref name="targetRelativePath"/> (e.g.
     /// "textures\landscape\statics\rocks01.dds") inside the output location's own textures folder.
-    /// Cached per target path within this generator's lifetime (one patch run) so repeat calls
-    /// don't redo the transform for the same texture. Returns false if generation isn't possible
-    /// (source missing, or the transform itself failed) - callers should treat that exactly like
-    /// "no sibling found" rather than an error.
+    /// <paramref name="isPbr"/> selects the output compression: PBR diffuse textures need BC1 (sRGB,
+    /// not linear) while vanilla/complex-material ones need BC7 - recompressing a PBR source to BC7
+    /// (or dropping its sRGB tag) reported directly as visibly wrong rendering downstream. Cached
+    /// per target path within this generator's lifetime (one patch run) so repeat calls don't redo
+    /// the transform for the same texture. Returns false if generation isn't possible (source
+    /// missing, or the transform itself failed) - callers should treat that exactly like "no
+    /// sibling found" rather than an error.
     /// </summary>
-    public bool TryGenerate(string sourceDiffusePath, string targetRelativePath, out string generatedFullPath)
+    public bool TryGenerate(string sourceDiffusePath, string targetRelativePath, bool isPbr, out string generatedFullPath)
     {
         if (_cache.TryGetValue(targetRelativePath, out var cached))
         {
@@ -71,7 +74,7 @@ public sealed class MissingTextureGenerator
             return cached is not null;
         }
 
-        var success = TryGenerateCore(sourceDiffusePath, targetRelativePath, out generatedFullPath);
+        var success = TryGenerateCore(sourceDiffusePath, targetRelativePath, isPbr, out generatedFullPath);
         _cache[targetRelativePath] = success ? generatedFullPath : null;
         if (success)
         {
@@ -94,7 +97,7 @@ public sealed class MissingTextureGenerator
         }
     }
 
-    private bool TryGenerateCore(string sourceDiffusePath, string targetRelativePath, out string generatedFullPath)
+    private bool TryGenerateCore(string sourceDiffusePath, string targetRelativePath, bool isPbr, out string generatedFullPath)
     {
         generatedFullPath = Path.Combine(_outputLocation, targetRelativePath);
 
@@ -125,7 +128,7 @@ public sealed class MissingTextureGenerator
         {
             Directory.CreateDirectory(outputDir);
 
-            var resultCode = ab_strip_alpha_to_opaque(extractedPath, generatedFullPath);
+            var resultCode = ab_strip_alpha_to_opaque(extractedPath, generatedFullPath, isPbr ? 1 : 0);
             if (resultCode != 0)
             {
                 AddDiagnostic($"'{sourceDiffusePath}': AutoBlendTexTools failed (code {resultCode}).");

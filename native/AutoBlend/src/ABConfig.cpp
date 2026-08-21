@@ -34,11 +34,31 @@ auto appDataDir() -> filesystem::path
 }
 }
 
-auto ABConfig::getConfigPath() -> filesystem::path { return appDataDir() / "AutoBlend" / "settings.json"; }
+auto ABConfig::getConfigPath(const filesystem::path& exeDir) -> filesystem::path { return exeDir / "settings.json"; }
 
-auto ABConfig::load() -> ABParams { return loadFrom(getConfigPath()); }
+auto ABConfig::load(const filesystem::path& exeDir) -> ABParams
+{
+    const auto localPath = getConfigPath(exeDir);
+    if (filesystem::exists(localPath)) {
+        return loadFrom(localPath);
+    }
 
-void ABConfig::save(const ABParams& params) { saveTo(getConfigPath(), params); }
+    // First run for this particular copy of AutoBlend (a fresh per-modlist install, or upgrading
+    // from a version that still used the single shared %APPDATA%\AutoBlend\settings.json) - fall
+    // back to that old shared location once, so an existing user's Game Location/Output Location/
+    // etc. carry forward instead of appearing blank, then let this copy's own settings.json (saved
+    // on the next OK/Start) take over from here on. Never write anything back to the shared path -
+    // every other copy of AutoBlend should get the exact same one-time fallback, not have it
+    // consumed by whichever copy happens to run first.
+    const auto sharedPath = appDataDir() / "AutoBlend" / "settings.json";
+    if (filesystem::exists(sharedPath)) {
+        return loadFrom(sharedPath);
+    }
+
+    return ABParams {};
+}
+
+void ABConfig::save(const filesystem::path& exeDir, const ABParams& params) { saveTo(getConfigPath(exeDir), params); }
 
 auto ABConfig::loadFrom(const filesystem::path& configFilePath) -> ABParams
 {

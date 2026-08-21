@@ -36,7 +36,7 @@ auto getSharedD3D11Device() -> ID3D11Device*
 // turns a blend-edge diffuse into a standalone "statics" one (verified against Vanaheimr's own
 // hand-authored statics textures: identical RGB, only alpha differs). This mirrors texconv's own
 // `--swizzle rgb1`, minus the swizzle CLI's own file I/O.
-auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath) -> int
+auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath, bool isPbr) -> int
 {
     TexMetadata srcMetadata {};
     ScratchImage srcImage;
@@ -74,19 +74,26 @@ auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath) -> int
         return 3;
     }
 
-    // Always (re)compress to BC7, regardless of what format the winning source happened to be in
-    // (BC1/BC3/BC7/uncompressed all occur across a real modlist) - keeps every generated statics
-    // texture on one consistent, modern format instead of inheriting a mix, and BC7 is Skyrim SE's
-    // own preferred diffuse format anyway.
+    // Regardless of what format the winning source happened to be in (BC1/BC3/BC7/uncompressed all
+    // occur across a real modlist), recompress to ONE consistent target format - but which one
+    // depends on what the generated texture is FOR, not just "Skyrim SE's preferred diffuse
+    // format": a PBR diffuse needs BC1, sRGB-tagged (NOT the linear/UNORM-without-gamma-tag a bare
+    // BC1_UNORM would produce) - Skyrim's PBR pipeline reads it that way specifically. A vanilla/
+    // complex-material diffuse stays BC7 as before. Reported directly and confirmed against a real
+    // PBR texture pack's own generated statics variant rendering wrong until this distinction
+    // existed.
+    const DXGI_FORMAT targetFormat = isPbr ? DXGI_FORMAT_BC1_UNORM_SRGB : DXGI_FORMAT_BC7_UNORM;
+
     ScratchImage recompressed;
     HRESULT compressHr = E_FAIL;
 
     // GPU path first (DirectCompute-based, dramatically faster for BC7 in particular - see the
-    // getSharedD3D11Device() comment above for why). alphaWeight 1.0 is DirectXTex's own
-    // documented "typical value" for BC7.
+    // getSharedD3D11Device() comment above for why; BC1 is cheap either way but the same device is
+    // reused). alphaWeight 1.0 is DirectXTex's own documented "typical value" for BC7 - Compress()
+    // ignores it for non-BC6H/BC7 targets, so passing it unconditionally for BC1 is harmless.
     if (auto* device = getSharedD3D11Device(); device != nullptr) {
         compressHr = Compress(device, opaqueImage.GetImages(), opaqueImage.GetImageCount(), opaqueImage.GetMetadata(),
-            DXGI_FORMAT_BC7_UNORM, TEX_COMPRESS_DEFAULT, 1.0f, recompressed);
+            targetFormat, TEX_COMPRESS_DEFAULT, 1.0f, recompressed);
     }
 
     if (FAILED(compressHr)) {
@@ -94,12 +101,13 @@ auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath) -> int
         // exhaustive partition search - measured taking 15-25s for a single 4K landscape texture.
         // PARALLEL enables DirectXTex's own OpenMP-based multithreading (already a build
         // dependency - see CMakeLists.txt's vcomp140.dll bundling); BC7_QUICK swaps the exhaustive
-        // search for BC7's minimal-mode encoder. Output is a synthesized fallback texture (RGB
-        // already went through one lossy decompress/recompress round-trip regardless), so the
-        // modest quality trade for far less compute is the right call.
+        // search for BC7's minimal-mode encoder - only meaningful for BC7 itself, but harmless to
+        // pass for BC1 (ignored). Output is a synthesized fallback texture (RGB already went
+        // through one lossy decompress/recompress round-trip regardless), so the modest quality
+        // trade for far less compute is the right call.
         const auto compressFlags = static_cast<TEX_COMPRESS_FLAGS>(TEX_COMPRESS_PARALLEL | TEX_COMPRESS_BC7_QUICK);
         compressHr = Compress(opaqueImage.GetImages(), opaqueImage.GetImageCount(), opaqueImage.GetMetadata(),
-            DXGI_FORMAT_BC7_UNORM, compressFlags, TEX_THRESHOLD_DEFAULT, recompressed);
+            targetFormat, compressFlags, TEX_THRESHOLD_DEFAULT, recompressed);
     }
 
     if (FAILED(compressHr)) {
@@ -116,10 +124,12 @@ auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath) -> int
 }
 
 /**
- * @brief Writes an opaque (alpha-stripped) copy of the DDS at srcPath to dstPath, preserving its
- * original pixel format. Returns 0 on success, non-zero on failure - never throws across the
- * P/Invoke boundary, matching the same "nothing here can escape" convention
- * AutoBlend.NativeExport's own DNNE exports use for the opposite (native-calls-into-C#) direction.
+ * @brief Writes an opaque (alpha-stripped) copy of the DDS at srcPath to dstPath, recompressed to
+ * BC1 sRGB when isPbr is nonzero, or BC7 otherwise - see stripAlphaToOpaque's own comment for why
+ * this can't just "preserve the original format" the way it used to. Returns 0 on success,
+ * non-zero on failure - never throws across the P/Invoke boundary, matching the same "nothing here
+ * can escape" convention AutoBlend.NativeExport's own DNNE exports use for the opposite
+ * (native-calls-into-C#) direction.
  *
  * Called in-process via P/Invoke from AutoBlend.Core.Scanning.MissingTextureGenerator rather than
  * shelling out to texconv.exe as a subprocess: MO2's USVFS hooks CreateProcess for every child
@@ -128,14 +138,14 @@ auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath) -> int
  * standalone outside MO2. Loading this as a library into the already-running (already-hooked)
  * process sidesteps that hook entirely, since no new process is ever created.
  */
-extern "C" __declspec(dllexport) int __stdcall ab_strip_alpha_to_opaque(const wchar_t* srcPath, const wchar_t* dstPath)
+extern "C" __declspec(dllexport) int __stdcall ab_strip_alpha_to_opaque(const wchar_t* srcPath, const wchar_t* dstPath, int isPbr)
 {
     if (srcPath == nullptr || dstPath == nullptr) {
         return -1;
     }
 
     try {
-        return stripAlphaToOpaque(srcPath, dstPath);
+        return stripAlphaToOpaque(srcPath, dstPath, isPbr != 0);
     } catch (...) {
         return -2;
     }
