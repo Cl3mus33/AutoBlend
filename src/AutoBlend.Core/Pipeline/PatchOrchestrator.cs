@@ -461,7 +461,25 @@ public sealed class PatchOrchestrator
                                 continue;
                             }
 
-                            var cacheKey = $"{t.Detection!.Rule.FolderName}|{t.Source!.SourceName}";
+                            // Keyed on the actual resolved texture path being derived - NOT
+                            // t.Source!.SourceName, which for a "BaseDerived" shape (see
+                            // ClassifyRecord below) is the NIF SHAPE's own name (e.g. "RockSkirt"),
+                            // not the texture's identity. Generic shape names like "RockSkirt" are
+                            // reused across many unrelated meshes with completely different diffuse
+                            // textures (e.g. MountainTrim01's own "RockSkirt" uses SnowRocks01,
+                            // while some other landscape mesh's own "RockSkirt" uses Rocks01) - a
+                            // shape-name-keyed cache collided across them, so whichever mesh
+                            // happened to be processed first "won" the cache entry and every other
+                            // mesh sharing that shape name silently inherited its WRONG derived
+                            // TextureSet instead of creating its own. Reproduced directly: a vanilla
+                            // + ERM - Enhanced Rocks and Mountains test run assigned the SAME
+                            // "Rocks01"-derived TextureSet to every "RockSkirt" shape across
+                            // MountainTrim01/02/03 and their Wet variants, even though several of
+                            // them embed a different vanilla diffuse. DerivedDiffusePath already
+                            // encodes the rule folder in its own path (e.g.
+                            // "textures\landscape\blend\snowrocks01.dds"), so it alone is a
+                            // sufficient and correct cache key.
+                            var cacheKey = t.Detection!.DerivedDiffusePath;
                             if (!derivedTxstCache.TryGetValue(cacheKey, out var derivedTxst))
                             {
                                 try

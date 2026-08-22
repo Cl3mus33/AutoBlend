@@ -5,6 +5,24 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.10] - 2026-08-23
+
+### Fixed
+- Fixed derived TextureSets being cached (and reused) by NIF shape name instead of by the actual
+  texture being derived. Generic shape names like "RockSkirt" are reused across many unrelated
+  meshes with completely different diffuse textures (e.g. `MountainTrim01.nif`'s own "RockSkirt"
+  legitimately differs per placed reference - some use SnowRocks01, others use Rocks01, Tundra
+  Rocks01, etc., matching each reference's own vanilla-authored Alternate Texture). Because the
+  cache was keyed only on the rule folder plus the shape's name, whichever mesh/record happened to
+  be processed first "won" the cache entry, and every other reference sharing that shape name
+  silently inherited its wrong derived TextureSet instead of getting its own - producing visibly
+  mismatched ("purple"/wrong-looking) landscape textures in game, independent of PBR or any specific
+  texture pack. Reproduced directly against a minimal vanilla + ERM - Enhanced Rocks and Mountains
+  test: every "RockSkirt" shape across MountainTrim01/02/03 and their Wet variants collapsed onto a
+  single shared (and mostly wrong) TextureSet before this fix. The cache is now keyed on the actual
+  resolved output texture path instead, so unrelated shapes sharing a name no longer collide, and
+  each reference's own alternate texture is derived independently and correctly.
+
 ## [1.0.9] - 2026-08-21
 
 ### Fixed
