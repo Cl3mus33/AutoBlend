@@ -10,49 +10,25 @@
 #include <fstream>
 #include <wchar.h>
 
-// <windows.h> before <shlobj.h> so knownfolders.h's FOLDERID_* GUID definitions see properly
-// set-up COM/GUID macros (DECLSPEC_SELECTANY etc.) - matches util/StringUtil.cpp's fix for the
-// same class of "included a um/ header standalone" issue.
-#include <windows.h>
-
-#include <shlobj.h>
-
 using namespace std;
-
-namespace {
-auto appDataDir() -> filesystem::path
-{
-    PWSTR rawPath = nullptr;
-    filesystem::path result;
-    if (SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &rawPath) == S_OK) {
-        result = filesystem::path(rawPath);
-    }
-    if (rawPath != nullptr) {
-        CoTaskMemFree(rawPath);
-    }
-    return result;
-}
-}
 
 auto ABConfig::getConfigPath(const filesystem::path& exeDir) -> filesystem::path { return exeDir / "settings.json"; }
 
 auto ABConfig::load(const filesystem::path& exeDir) -> ABParams
 {
+    // Each copy of AutoBlend (one per modlist, the established deployment convention) keeps its
+    // own settings.json beside its own exe and nothing else - no fallback to any other copy's
+    // settings, shared or otherwise. An earlier version fell back once to a single shared
+    // %APPDATA%\AutoBlend\settings.json when no local file existed yet, meant to carry an
+    // existing user's values forward across the upgrade that introduced per-exe-dir settings.
+    // That one-time migration has already happened for anyone who needed it; left in place, it
+    // meant every brand new install on a brand new modlist silently inherited whatever modlist's
+    // settings happened to be saved there last (wrong Game Location, Output Location, MO2
+    // Instance Path, etc.) instead of starting clean, reported directly as confusing and
+    // unwanted. A fresh copy with no settings.json of its own now always starts blank.
     const auto localPath = getConfigPath(exeDir);
     if (filesystem::exists(localPath)) {
         return loadFrom(localPath);
-    }
-
-    // First run for this particular copy of AutoBlend (a fresh per-modlist install, or upgrading
-    // from a version that still used the single shared %APPDATA%\AutoBlend\settings.json) - fall
-    // back to that old shared location once, so an existing user's Game Location/Output Location/
-    // etc. carry forward instead of appearing blank, then let this copy's own settings.json (saved
-    // on the next OK/Start) take over from here on. Never write anything back to the shared path -
-    // every other copy of AutoBlend should get the exact same one-time fallback, not have it
-    // consumed by whichever copy happens to run first.
-    const auto sharedPath = appDataDir() / "AutoBlend" / "settings.json";
-    if (filesystem::exists(sharedPath)) {
-        return loadFrom(sharedPath);
     }
 
     return ABParams {};

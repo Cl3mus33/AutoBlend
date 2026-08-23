@@ -22,6 +22,13 @@ All notable changes to this project are documented here. Format loosely follows
   single shared (and mostly wrong) TextureSet before this fix. The cache is now keyed on the actual
   resolved output texture path instead, so unrelated shapes sharing a name no longer collide, and
   each reference's own alternate texture is derived independently and correctly.
+- Removed the one-time fallback to a shared `%APPDATA%\AutoBlend\settings.json` when a copy's own
+  local `settings.json` doesn't exist yet. That fallback was meant to carry an existing user's
+  values forward across the update that introduced per-exe-dir settings (v1.0.7) - but left in
+  place indefinitely, it meant every brand new AutoBlend install on a brand new modlist silently
+  inherited whatever modlist's settings were saved there most recently (wrong Game Location,
+  Output Location, MO2 Instance Path, etc.) instead of starting clean, reported directly as
+  confusing and unwanted. A copy with no settings.json of its own now always starts blank.
 
 ## [1.0.9] - 2026-08-21
 
