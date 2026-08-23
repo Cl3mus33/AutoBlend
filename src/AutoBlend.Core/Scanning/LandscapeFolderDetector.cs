@@ -139,10 +139,32 @@ public sealed class LandscapeFolderDetector
             vanillaDiffusePath = TexturesSegment + "\\" + vanillaDiffusePath;
         }
 
+        // AutoGenerateAllowlist is authored in vanilla (never "textures\pbr\...") paths, on the
+        // assumption that whatever comes in here already IS the true vanilla identity - true for a
+        // mesh's own embedded default, but not for a shape whose source is an EXISTING Alternate
+        // Texture (see ClassifyRecord's AltTexDerived case) that already resolved to an
+        // already-PBR-edited TextureSet, e.g. a mod like "Sloppy Vanilla Landscapes PBR" that edits
+        // vanilla TXST records in place to point Diffuse/Normal/Height/RMAOS at its own "textures\
+        // pbr\..." files. Reproduced directly: with such a mod active, `diffusePath` here arrives
+        // already PBR-prefixed, so comparing it as-is against the (vanilla-only) allowlist never
+        // matched anything - silently skipping every shape sourced this way, never generating a
+        // "blend" variant or creating its TextureSet, even though the exact same texture generates
+        // fine when reached via a mesh's own vanilla-path embedded default instead. Strip a leading
+        // "textures\pbr\" once, purely for this allowlist comparison, so the check always sees the
+        // texture's true vanilla identity regardless of which path got it here.
+        var allowlistCheckPath = vanillaDiffusePath;
+        var allowlistSegments = allowlistCheckPath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (allowlistSegments.Length > 1 && allowlistSegments[1].Equals(PbrSegment, StringComparison.OrdinalIgnoreCase))
+        {
+            var strippedSegments = allowlistSegments.ToList();
+            strippedSegments.RemoveAt(1);
+            allowlistCheckPath = string.Join('\\', strippedSegments);
+        }
+
         // If a PBR sibling exists, every file operation below (statics exists/generate) operates
-        // on IT instead - vanillaDiffusePath itself is kept unchanged and still used for allowlist
-        // matching below, so a texture's identity for allowlist purposes never depends on whether a
-        // PBR pack happens to be installed.
+        // on IT instead - allowlistCheckPath (computed above) is what allowlist matching uses, so a
+        // texture's identity for allowlist purposes never depends on whether a PBR pack happens to
+        // be installed, or on whether it's already-PBR by the time it reaches here.
         var effectiveDiffusePath = vanillaDiffusePath;
         string? pbrNormalPath = null;
         string? pbrHeightPath = null;
@@ -265,7 +287,7 @@ public sealed class LandscapeFolderDetector
             // far more textures than intended (including ones with no real source, or ones an opaque
             // variant doesn't actually make sense for), so this is opt-in per texture, not blanket.
             var canGenerate = rule.FolderName.Equals(GeneratableFolderName, StringComparison.OrdinalIgnoreCase)
-                && WildcardMatcher.MatchesAny(vanillaDiffusePath, _autoGenerateAllowlist);
+                && WildcardMatcher.MatchesAny(allowlistCheckPath, _autoGenerateAllowlist);
             if (canGenerate && _textureGenerator is not null && _textureGenerator.TryGenerate(effectiveDiffusePath, candidatePath, usingPbr, out _))
             {
                 if (usingPbr)
