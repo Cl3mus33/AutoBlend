@@ -22,6 +22,11 @@ All notable changes to this project are documented here. Format loosely follows
   single shared (and mostly wrong) TextureSet before this fix. The cache is now keyed on the actual
   resolved output texture path instead, so unrelated shapes sharing a name no longer collide, and
   each reference's own alternate texture is derived independently and correctly.
+- Generated plugins are now flagged ESL (light plugin) automatically whenever the run's own new
+  records fit the ESL limit (~2048) - which every real run does, since AutoBlend only ever adds a
+  handful of derived TextureSets. Keeps AutoBlend Output off the 254-regular-plugin hard limit
+  without the user needing to flag it by hand. Falls back to a normal ESP (with a warning) on the
+  rare run large enough to exceed the limit, rather than writing a corrupt plugin.
 - Removed the one-time fallback to a shared `%APPDATA%\AutoBlend\settings.json` when a copy's own
   local `settings.json` doesn't exist yet. That fallback was meant to carry an existing user's
   values forward across the update that introduced per-exe-dir settings (v1.0.7) - but left in

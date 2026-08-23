@@ -552,6 +552,25 @@ public sealed class PatchOrchestrator
             Report("Writing patch plugin...");
             Directory.CreateDirectory(_settings.OutputLocation);
             outputEspPath = Path.Combine(_settings.OutputLocation, $"{PatchModName}.esp");
+
+            // AutoBlend only ever adds a handful of new records (derived TextureSets, and
+            // occasionally a duplicated mesh's own override Model) - a real run's own numbers
+            // (e.g. 19 TextureSets created against 227 Alternate Textures assigned) sit nowhere
+            // near the ~2048-new-record ESL ceiling, so this is safe to do unconditionally rather
+            // than opt-in. Keeps AutoBlend Output off the 254-regular-plugin limit for free.
+            // CanBeSmallMaster is Mutagen's own check against that same ceiling - only flip the
+            // flag when it actually holds, so an unusually large run still writes a normal ESP
+            // instead of a corrupt one.
+            if (patchMod.CanBeSmallMaster)
+            {
+                patchMod.IsSmallMaster = true;
+            }
+            else
+            {
+                warnings.Add("This run's own new records exceed the ESL limit - plugin written as a "
+                    + "regular (non-ESL) ESP instead.");
+            }
+
             patchMod.BeginWrite.ToPath(outputEspPath).WithNoLoadOrder().Write();
         }
 
