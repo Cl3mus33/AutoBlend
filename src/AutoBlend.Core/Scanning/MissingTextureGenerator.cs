@@ -39,6 +39,12 @@ public sealed class MissingTextureGenerator
     private readonly List<string> _diagnostics = new();
     private bool _reportedMissingDll;
 
+    // Built lazily on first lookup: normalized match value (e.g. "landscape\rocks01", no prefix/
+    // extension) -> raw JSON text of the single entry object that covers it, taken from ANY json
+    // found under "PBRNifPatcher\" across the whole load order - not just a file living at the
+    // exact path our own naming convention would compute. See TryFindExistingPbrEntry.
+    private Dictionary<string, string>? _pbrJsonEntryIndex;
+
     /// <summary>Number of textures successfully synthesized this run.</summary>
     public int GeneratedCount { get; private set; }
 
@@ -115,7 +121,13 @@ public sealed class MissingTextureGenerator
     /// follows, since PG Patcher discovers jsons by scanning that whole subtree, not by an index).
     /// Does nothing if the nested variant already has its own dedicated json (some packs, like
     /// Vanaheimr, ship one explicitly even though their own bare-filename convention wouldn't have
-    /// needed it) or if the parent has no json to mirror from at all (nothing to clone).
+    /// needed it). If there's no json living at the exact path our own convention would compute,
+    /// falls back to searching every PBRNifPatcher json anywhere in the load order for an entry
+    /// that already covers the parent texture (see TryFindExistingPbrEntry) - this is what actually
+    /// catches a pack like "Sloppy Vanilla Landscapes PBR", which ships ALL of its entries bundled
+    /// into one arbitrarily-named combined json rather than one file per texture. Only as a last
+    /// resort, when nothing anywhere already describes this texture, does it author a fresh default
+    /// (see TryAuthorDefaultPbrJson) rather than leaving PG Patcher with nothing.
     /// </summary>
     public void TryMirrorPbrJson(string parentPbrDiffusePath, string nestedPbrDiffusePath)
     {
@@ -128,6 +140,19 @@ public sealed class MissingTextureGenerator
         var sourceJsonPath = ToPbrJsonPath(parentPbrDiffusePath);
         if (sourceJsonPath is null || !_fileProbe.Exists(sourceJsonPath))
         {
+            var parentIdentity = StripTexturesPbrPrefixAndExtension(parentPbrDiffusePath);
+            var existingEntry = parentIdentity is not null ? TryFindExistingPbrEntry(parentIdentity) : null;
+            if (existingEntry is not null)
+            {
+                CloneEntryToTarget(existingEntry, nestedPbrDiffusePath, targetJsonPath);
+                return;
+            }
+
+            // No existing json anywhere to clone from either - matches AutoSeasons' own situation
+            // for every seasonal variant it generates (a texture that structurally can't have a
+            // pre-existing PBR config, since AutoSeasons only just invented it). Author a fresh one
+            // instead of leaving PG Patcher with nothing to match at all.
+            TryAuthorDefaultPbrJson(nestedPbrDiffusePath);
             return;
         }
 
@@ -174,6 +199,200 @@ public sealed class MissingTextureGenerator
         catch (Exception ex)
         {
             AddDiagnostic($"Could not mirror PBRNifPatcher json for '{nestedPbrDiffusePath}': {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Searches every json found under "PBRNifPatcher\" anywhere in the load order (via
+    /// <see cref="IGameFileProbe.EnumerateFiles"/> - loose files across every active mod, not just
+    /// one computed path) for an entry whose own "texture"/"match_diffuse" value already covers
+    /// <paramref name="vanillaIdentity"/> (e.g. "landscape\rocks01"). Needed because not every pack
+    /// follows the "one json file per texture, named after it" convention <see cref="ToPbrJsonPath"/>
+    /// assumes - "Sloppy Vanilla Landscapes PBR" was found shipping ALL of its entries bundled into
+    /// a single "Sloppy Vanilla Landscapes.json", so a plain Exists() check against the computed
+    /// per-texture path never finds it even though the exact entry we need is right there. Indexed
+    /// once (lazily) under both the full identity and its bare filename, matching the two real
+    /// conventions PG Patcher's own suffix-match already tolerates (see TryMirrorPbrJson's own doc
+    /// comment on the Vanaheimr/TomatoRim distinction). Returns null if nothing anywhere covers it.
+    /// </summary>
+    private JsonObject? TryFindExistingPbrEntry(string vanillaIdentity)
+    {
+        EnsurePbrJsonEntryIndexBuilt();
+
+        var normalized = NormalizeMatchValue(vanillaIdentity);
+        if (_pbrJsonEntryIndex!.TryGetValue(normalized, out var json))
+        {
+            return JsonNode.Parse(json) as JsonObject;
+        }
+
+        var bareName = NormalizeMatchValue(Path.GetFileName(vanillaIdentity));
+        if (_pbrJsonEntryIndex.TryGetValue(bareName, out json))
+        {
+            return JsonNode.Parse(json) as JsonObject;
+        }
+
+        return null;
+    }
+
+    private void EnsurePbrJsonEntryIndexBuilt()
+    {
+        if (_pbrJsonEntryIndex is not null)
+        {
+            return;
+        }
+
+        _pbrJsonEntryIndex = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        IEnumerable<string> jsonPaths;
+        try
+        {
+            jsonPaths = _fileProbe.EnumerateFiles("PBRNifPatcher", ".json").ToList();
+        }
+        catch (Exception ex)
+        {
+            AddDiagnostic($"Could not enumerate existing PBRNifPatcher json files: {ex.GetType().Name}: {ex.Message}");
+            return;
+        }
+
+        foreach (var jsonPath in jsonPaths)
+        {
+            try
+            {
+                JsonNode? json;
+                using (var source = _fileProbe.OpenRead(jsonPath))
+                {
+                    json = JsonNode.Parse(source);
+                }
+
+                var entries = json as JsonArray ?? json?["entries"] as JsonArray;
+                if (entries is null)
+                {
+                    continue;
+                }
+
+                foreach (var entry in entries)
+                {
+                    if (entry is not JsonObject obj)
+                    {
+                        continue;
+                    }
+
+                    var matchValue = (obj["texture"] ?? obj["match_diffuse"])?.GetValue<string>();
+                    if (string.IsNullOrEmpty(matchValue))
+                    {
+                        continue;
+                    }
+
+                    // First entry found for a given identity wins - matches how a real modlist's
+                    // own load-order priority would resolve two mods both describing the same
+                    // texture, since EnumerateFiles already yields loose files in that same order.
+                    _pbrJsonEntryIndex.TryAdd(NormalizeMatchValue(matchValue), obj.ToJsonString());
+                }
+            }
+            catch
+            {
+                // Best-effort: one unparsable json (malformed, not actually PG Patcher's schema)
+                // shouldn't stop the rest of the load order from being indexed.
+            }
+        }
+    }
+
+    /// <summary>Clones a single existing PBRNifPatcher entry (found via <see cref="TryFindExistingPbrEntry"/>)
+    /// into a fresh json covering <paramref name="nestedPbrDiffusePath"/> - same tuned material
+    /// parameters (roughness, displacement, glint, etc.) as whatever already describes the parent
+    /// texture, only the match key itself updated. "rename" is stripped since that field redirects
+    /// to the SOURCE entry's own alternate identity, which has no meaning for our own new path.</summary>
+    private void CloneEntryToTarget(JsonObject sourceEntry, string nestedPbrDiffusePath, string targetJsonPath)
+    {
+        try
+        {
+            var clone = JsonNode.Parse(sourceEntry.ToJsonString()) as JsonObject;
+            var nestedMatchValue = StripTexturesPbrPrefixAndExtension(nestedPbrDiffusePath);
+
+            clone!.Remove("rename");
+            if (clone.ContainsKey("texture"))
+            {
+                clone["texture"] = nestedMatchValue;
+            }
+            else if (clone.ContainsKey("match_diffuse"))
+            {
+                clone["match_diffuse"] = nestedMatchValue;
+            }
+            else
+            {
+                clone["match_diffuse"] = nestedMatchValue;
+            }
+
+            var json = new JsonArray(clone);
+            var destFullPath = Path.Combine(_outputLocation, targetJsonPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(destFullPath)!);
+            File.WriteAllText(destFullPath, json.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+            _mirroredPbrJsonPaths.Add(targetJsonPath);
+            MirroredJsonCount++;
+        }
+        catch (Exception ex)
+        {
+            AddDiagnostic($"Could not clone an existing PBRNifPatcher entry for '{nestedPbrDiffusePath}': {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>Normalizes a PBRNifPatcher match value ("texture"/"match_diffuse", or our own
+    /// StripTexturesPbrPrefixAndExtension output) to a stable index key: backslash-separated,
+    /// extension-less, case folded via the index's own OrdinalIgnoreCase comparer.</summary>
+    private static string NormalizeMatchValue(string value)
+    {
+        var noExt = Path.HasExtension(value) ? value[..^Path.GetExtension(value).Length] : value;
+        return noExt.Replace('/', '\\').Trim('\\');
+    }
+
+    /// <summary>
+    /// Authors a fresh PBRNifPatcher json for <paramref name="pbrDiffusePath"/> from scratch, using
+    /// the same default TruePBR material parameters and "match_diffuse: bare-filename.dds" key
+    /// convention AutoSeasons' own equivalent generator already uses for its own seasonal texture
+    /// variants (verified directly against a real "AutoSeasons Output" json) - same author, same
+    /// underlying PG Patcher target, no reason to invent a second convention. Used as the last-resort
+    /// fallback when there's no existing json anywhere to mirror parameters from (see
+    /// TryMirrorPbrJson) - a generic, reasonable-default material is still far better than PG
+    /// Patcher's own bare "mark as PBR, no parameters" fallback for a texture with zero prior art.
+    /// </summary>
+    private void TryAuthorDefaultPbrJson(string pbrDiffusePath)
+    {
+        var targetJsonPath = ToPbrJsonPath(pbrDiffusePath);
+        if (targetJsonPath is null || _mirroredPbrJsonPaths.Contains(targetJsonPath) || _fileProbe.Exists(targetJsonPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var matchDiffuse = Path.GetFileName(pbrDiffusePath);
+            var entry = new JsonObject
+            {
+                ["match_diffuse"] = matchDiffuse,
+                ["emissive"] = false,
+                ["parallax"] = true,
+                ["subsurface_foliage"] = false,
+                ["subsurface"] = false,
+                ["specular_level"] = 0.04,
+                ["subsurface_color"] = new JsonArray(1, 1, 1),
+                ["roughness_scale"] = 1,
+                ["subsurface_opacity"] = 1,
+                ["smooth_angle"] = 75,
+                ["displacement_scale"] = 1,
+            };
+            var json = new JsonArray(entry);
+
+            var destFullPath = Path.Combine(_outputLocation, targetJsonPath);
+            Directory.CreateDirectory(Path.GetDirectoryName(destFullPath)!);
+            File.WriteAllText(destFullPath, json.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+            _mirroredPbrJsonPaths.Add(targetJsonPath);
+            MirroredJsonCount++;
+        }
+        catch (Exception ex)
+        {
+            AddDiagnostic($"Could not author a default PBRNifPatcher json for '{pbrDiffusePath}': {ex.GetType().Name}: {ex.Message}");
         }
     }
 

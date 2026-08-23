@@ -18,6 +18,20 @@ public sealed class LooseFileProbe : IGameFileProbe
 
     public Stream OpenRead(string relativeDataPath) => File.OpenRead(ResolvePath(relativeDataPath));
 
+    public IEnumerable<string> EnumerateFiles(string relativeFolder, string extension)
+    {
+        var full = ResolvePath(relativeFolder);
+        if (!Directory.Exists(full))
+        {
+            yield break;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(full, "*" + extension, SearchOption.AllDirectories))
+        {
+            yield return Path.GetRelativePath(_dataRoot, file);
+        }
+    }
+
     private string ResolvePath(string relativeDataPath) => Path.Combine(_dataRoot, relativeDataPath);
 
     public void Dispose()

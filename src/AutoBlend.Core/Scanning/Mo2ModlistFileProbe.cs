@@ -25,5 +25,26 @@ public sealed class Mo2ModlistFileProbe : IGameFileProbe
     public Stream OpenRead(string relativeDataPath) =>
         _reader.TryResolveLooseOrArchived(relativeDataPath, out var stream) ? stream : _vanillaProbe.OpenRead(relativeDataPath);
 
+    public IEnumerable<string> EnumerateFiles(string relativeFolder, string extension)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var relativePath in _reader.EnumerateLooseFiles(relativeFolder, extension))
+        {
+            if (seen.Add(relativePath))
+            {
+                yield return relativePath;
+            }
+        }
+
+        foreach (var relativePath in _vanillaProbe.EnumerateFiles(relativeFolder, extension))
+        {
+            if (seen.Add(relativePath))
+            {
+                yield return relativePath;
+            }
+        }
+    }
+
     public void Dispose() => _vanillaProbe.Dispose();
 }

@@ -151,6 +151,53 @@ public sealed class Mo2InstanceReader : IDisposable
         return false;
     }
 
+    /// <summary>Lists every loose file matching <paramref name="extension"/> under
+    /// <paramref name="relativeFolder"/> (recursive) across the whole modlist - the overwrite
+    /// folder, then every enabled mod folder in priority order - deduplicated by relative path so a
+    /// path multiple mods provide is only reported once, for whichever copy wins (same priority
+    /// order <see cref="TryResolve"/> itself uses). Archives are not searched: content this is used
+    /// for (PBRNifPatcher json configs) is never packed into BSA/BA2 in practice.</summary>
+    public IEnumerable<string> EnumerateLooseFiles(string relativeFolder, string extension)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (OverwriteFolder is not null)
+        {
+            foreach (var relativePath in EnumerateUnder(OverwriteFolder, relativeFolder, extension))
+            {
+                if (seen.Add(relativePath))
+                {
+                    yield return relativePath;
+                }
+            }
+        }
+
+        foreach (var modFolder in EnabledModFoldersHighToLowPriority)
+        {
+            foreach (var relativePath in EnumerateUnder(modFolder, relativeFolder, extension))
+            {
+                if (seen.Add(relativePath))
+                {
+                    yield return relativePath;
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateUnder(string root, string relativeFolder, string extension)
+    {
+        var full = Path.Combine(root, relativeFolder);
+        if (!Directory.Exists(full))
+        {
+            yield break;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(full, "*" + extension, SearchOption.AllDirectories))
+        {
+            yield return Path.GetRelativePath(root, file);
+        }
+    }
+
     public bool ExistsLooseOrArchived(string relativeDataPath)
     {
         if (TryResolve(relativeDataPath, out _))

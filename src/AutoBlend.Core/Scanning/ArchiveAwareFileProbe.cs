@@ -67,6 +67,12 @@ public sealed class ArchiveAwareFileProbe : IGameFileProbe
         throw new FileNotFoundException($"'{relativeDataPath}' was not found loose or in any applicable archive.");
     }
 
+    /// <summary>Loose only - PBRNifPatcher-style json configs (the only current use of this method)
+    /// are never packed into BSA/BA2 in practice, and indexing every archive's full file list just
+    /// to search for json files would add real cost for no real-world benefit.</summary>
+    public IEnumerable<string> EnumerateFiles(string relativeFolder, string extension) =>
+        _looseProbe.EnumerateFiles(relativeFolder, extension);
+
     private bool TryFindArchiveFile(string relativeDataPath, out IArchiveFile? file)
     {
         foreach (var reader in _archiveReaders)
