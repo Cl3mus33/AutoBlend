@@ -5,6 +5,37 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.11] - 2026-08-23
+
+### Fixed
+- Fixed PBR generation silently creating zero TextureSets for shapes whose source is an existing
+  Alternate Texture that already resolves to a PBR-edited TextureSet (e.g. "Sloppy Vanilla
+  Landscapes PBR", which edits vanilla TextureSet records in place rather than shipping new ones).
+  The allowlist check that decides whether a "blend" variant may be generated compared the
+  already-PBR-prefixed incoming path directly against an allowlist authored in vanilla paths, so it
+  never matched and generation silently produced nothing for this whole class of shapes - even
+  though the exact same texture generated correctly when reached through a mesh's own vanilla-path
+  embedded default instead. The allowlist check now strips a leading PBR path segment before
+  comparing, so it always sees the texture's true vanilla identity regardless of which path
+  resolved it.
+
+### Added
+- AutoBlend now generates its own `PBRNifPatcher\...json` configs for every PBR "blend" texture it
+  creates, so PG Patcher picks up author-tuned material parameters (roughness, parallax,
+  displacement, glint, etc.) instead of falling back to its own bare "mark as PBR, no parameters"
+  default. Three sources are tried in order: (1) a dedicated json already sitting at the exact path
+  our own naming convention expects, cloned and re-pointed at the new nested path; (2) failing that,
+  every PBRNifPatcher json anywhere in the load order is searched for an entry that already covers
+  the source texture - this is what actually matters for packs like "Sloppy Vanilla Landscapes PBR",
+  which bundle every one of their entries into a single arbitrarily-named combined json rather than
+  one file per texture, so a plain "does a file exist at the expected path" check could never find
+  them; (3) only if nothing anywhere already describes the texture is a fresh json authored from
+  scratch, using the same default parameters and bare-filename `match_diffuse` convention
+  AutoSeasons' own equivalent generator already uses. When multiple mods each describe the same
+  texture in their own separate json, the mod highest in the MO2 load order wins - matching PG
+  Patcher's own documented conflict-resolution order (mod order first, then alphabetical filename,
+  then entry position).
+
 ## [1.0.10] - 2026-08-23
 
 ### Fixed
