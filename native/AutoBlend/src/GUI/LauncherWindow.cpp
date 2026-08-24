@@ -148,6 +148,16 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     m_mo2InstanceBrowseButton = new wxButton(generalPanel, wxID_ANY, ABTr("common.browse", "Browse"));
     m_mo2InstanceBrowseButton->Bind(wxEVT_BUTTON, &LauncherWindow::onBrowseMo2Instance, this);
 
+    // refreshMo2Profiles() was only ever wired to the Browse dialog closing - typing or pasting the
+    // instance path directly (the likely first-time path, before a settings.json exists to
+    // pre-populate this field) left the MO2 Profile dropdown empty with no way to pick anything but
+    // whatever "Default" falls back to, reported directly. Refreshing on focus-loss (not every
+    // keystroke, which would spam list_mo2_profiles mid-type) covers both entry paths the same way.
+    m_mo2InstancePathTextbox->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent& event) -> void {
+        refreshMo2Profiles();
+        event.Skip();
+    });
+
     auto* mo2InstanceSizer = new wxBoxSizer(wxHORIZONTAL);
     mo2InstanceSizer->Add(m_mo2InstancePathTextbox, 1, wxEXPAND | wxALL, BORDER_SIZE);
     mo2InstanceSizer->Add(m_mo2InstanceBrowseButton, 0, wxALL, BORDER_SIZE);

@@ -89,6 +89,22 @@ public sealed class PatchOrchestrator
             : null;
 
         var envDataFolder = materializedLoadOrder?.DataFolder ?? dataFolder;
+
+        // Diagnostic only, kept deliberately visible in the run log (not just a debugger) - a real
+        // report surfaced a crash ("Failed to compare two elements in the array." from deep inside
+        // Mutagen's own archive-priority comparer) right at the Build() call below, reachable only
+        // when GameEnvironment finds two archives under envDataFolder whose names collapse to the
+        // same stripped base+suffix pair. For an MO2 run, envDataFolder is supposed to be this same
+        // process's own throwaway plugins-only folder (see Mo2LoadOrderMaterializer) with no
+        // archives at all - if that's not what's actually on disk for a given user, this line is the
+        // only way to see it without asking them to attach a debugger themselves.
+        var envArchiveNames = Directory.Exists(envDataFolder)
+            ? Directory.EnumerateFiles(envDataFolder, "*.bsa").Concat(Directory.EnumerateFiles(envDataFolder, "*.ba2"))
+                .Select(Path.GetFileName).ToList()
+            : new List<string?>();
+        Report($"Loading game environment... (data folder: {envDataFolder}, {envArchiveNames.Count} archive(s) found"
+            + (envArchiveNames.Count > 0 ? $": {string.Join(", ", envArchiveNames.Take(10))}" : string.Empty) + ")");
+
         var envBuilder = GameEnvironment.Typical.Builder(gameRelease).WithTargetDataFolder(envDataFolder);
         using var env = materializedLoadOrder is not null
             ? envBuilder.WithLoadOrder(materializedLoadOrder.LoadOrder.ToArray()).Build()

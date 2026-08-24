@@ -104,7 +104,7 @@ public static class Exports
                 Status = "Failed to start",
                 IsDone = true,
                 IsFailed = true,
-                ErrorMessage = ex.Message,
+                ErrorMessage = DescribeException(ex),
             };
             return;
         }
@@ -129,7 +129,7 @@ public static class Exports
             }
             catch (Exception ex)
             {
-                state.ErrorMessage = ex.Message;
+                state.ErrorMessage = DescribeException(ex);
                 state.IsFailed = true;
             }
             finally
@@ -173,6 +173,42 @@ public static class Exports
     }
 
     private static IntPtr ToNativeUtf8(string value) => Marshal.StringToCoTaskMemUTF8(value);
+
+    // .NET wraps a comparer/keySelector's own exception in a generic outer one (e.g.
+    // InvalidOperationException "Failed to compare two elements in the array." from a LINQ
+    // OrderBy/Array.Sort inside Mutagen's own GameEnvironment building) - ex.Message alone hid the
+    // actual cause, the only thing that was ever surfaced to a user's error dialog, making a report
+    // like that undiagnosable without the reporter attaching a debugger themselves. Walks the whole
+    // InnerException chain so the real underlying message (e.g. which specific plugin/master
+    // triggered it) reaches the dialog too.
+    private static string DescribeException(Exception ex)
+    {
+        var messages = new List<string>();
+        var innermost = ex;
+        for (var current = (Exception?)ex; current is not null; current = current.InnerException)
+        {
+            messages.Add(current.Message);
+            innermost = current;
+        }
+
+        // The chained messages alone name WHAT went wrong but not WHERE - for a wrapped exception
+        // (e.g. NotImplementedException surfacing from deep inside a third-party library like
+        // Mutagen, several frames below anything this codebase calls directly) the innermost
+        // exception's own stack trace is the only way to identify the actual throw site without
+        // asking a reporter to attach a debugger. Capped at 6 frames - enough to name the class/
+        // method, not so much it floods the small error dialog.
+        var result = string.Join(" → ", messages);
+        var stackLines = innermost.StackTrace?
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Take(6)
+            .ToList();
+        if (stackLines is { Count: > 0 })
+        {
+            result += "\n" + string.Join("\n", stackLines);
+        }
+
+        return result;
+    }
 
     private sealed record ProgressSnapshot(
         string Status,

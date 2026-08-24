@@ -5,6 +5,33 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.13] - 2026-08-24
+
+### Fixed
+- **Fixed a hard crash ("Failed to compare two elements in the array. → The method or operation is
+  not implemented.") during "Loading game environment..." for load orders where two archives
+  (.bsa/.ba2) collapse to the same name once a mod's own " - Suffix" convention is stripped off -
+  reported directly, reliably reproduced down to a single Creation Club content pack. This is a
+  genuine bug in Mutagen's own archive-priority comparer (confirmed directly against its own
+  source): the branch reached when two archives tie is a bare `throw new NotImplementedException()`
+  that its own authors never filled in. It was being hit from AutoBlend's own code - the real
+  Data folder archive scan `ArchiveAwareFileProbe` runs as a fallback for anything not provided by a
+  mod - not from anything AutoBlend itself does with the colliding names, and could affect any load
+  order regardless of mod manager or profile setup. Since this can't be fixed on Mutagen's end from
+  here, that specific call is now wrapped: if it throws, AutoBlend falls back to a plain, unsorted
+  archive listing (archive priority ordering isn't actually needed for what this scan is used for)
+  instead of taking down the whole run.
+- Fixed the MO2 Profile dropdown never repopulating when the MO2 Instance Path is typed or pasted
+  directly rather than chosen via the "Browse..." button - the likely first-time setup path, before
+  a settings.json exists to pre-fill the field. Left the dropdown empty with no way to pick anything
+  but whatever "Default" silently falls back to, which is wrong for any instance whose real active
+  profile isn't literally named "Default". Now also refreshes when the field loses focus.
+- Error dialogs now show the full exception chain (every `InnerException`, not just the outermost
+  wrapper's own message) plus the innermost exception's own stack trace - a generic .NET wrapper
+  message like "Failed to compare two elements in the array." was the only thing ever surfacing to
+  a user's error dialog, with no way to tell what actually went wrong underneath without attaching a
+  debugger. This is what made the fix above possible to track down from a bug report alone.
+
 ## [1.0.12] - 2026-08-24
 
 ### Fixed
