@@ -440,6 +440,7 @@ void LauncherWindow::onLanguageChanged([[maybe_unused]] wxCommandEvent& event)
         return;
     }
 
+    commitPendingListEdits();
     ABLocale::init(m_exePath / "AutoBlend_translations", selectedLang.code);
     EndModal(RESULT_RELAUNCH);
 }
@@ -450,6 +451,7 @@ void LauncherWindow::onThemeChanged([[maybe_unused]] wxCommandEvent& event)
     // wx's MSW dark mode support turned out to be a one-way switch once enabled for a process, so
     // an in-process relaunch can't reliably get back to a lighter appearance after a darker one.
     // See main.cpp's handling of RESULT_RESTART.
+    commitPendingListEdits();
     EndModal(RESULT_RESTART);
 }
 
@@ -636,8 +638,26 @@ void LauncherWindow::onEditAllowlistButtonPressed([[maybe_unused]] wxCommandEven
     m_autoGenerateAllowlistDialog->ShowModal();
 }
 
+void LauncherWindow::commitPendingListEdits()
+{
+    // If the user just typed into one of the modifiable list controls' own trailing blank row
+    // (Mesh Blacklist / EditorID Keywords / Auto-Generate Allowlist) and then triggered a modal
+    // close directly - without pressing Enter or clicking elsewhere first to commit that in-place
+    // label edit - wxListCtrl still has the edit control open, and GetItemText() on that row keeps
+    // returning the OLD (empty) text until the edit is actually ended. getParams() would then
+    // silently drop whatever was just typed, with no error and no visible sign anything went wrong
+    // - reported directly: a newly added EditorID keyword never made it into settings.json despite
+    // clicking OK/Generate right after typing it. EndEditLabel(false) commits (does not cancel)
+    // any edit in progress on each control; a no-op if that control has no edit open at all.
+    m_meshBlacklistCtrl->EndEditLabel(false);
+    m_editorIdKeywordsCtrl->EndEditLabel(false);
+    m_autoGenerateAllowlistCtrl->EndEditLabel(false);
+}
+
 void LauncherWindow::onOkButtonPressed([[maybe_unused]] wxCommandEvent& event)
 {
+    commitPendingListEdits();
+
     if (m_gameLocationTextbox->GetValue().IsEmpty()) {
         wxMessageBox(ABTr("launcher.missingGameLocation.message", "Please select your game's install location."),
             ABTr("launcher.missingGameLocation.title", "Missing Game Location"), wxOK | wxICON_WARNING, this);

@@ -50,6 +50,7 @@ public sealed class PatcherSettings
         @"*\trees\*",
         @"*\actors\*",
         @"*\roads\*",
+        @"*\dungeons\*",
     };
 
     /// <summary>
@@ -63,6 +64,10 @@ public sealed class PatcherSettings
         "frozen",
         "glass",
         "unique",
+        "wet",
+        "road",
+        "cave",
+        "mine",
     };
 
     /// <summary>

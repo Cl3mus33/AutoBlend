@@ -8,9 +8,27 @@ namespace AutoBlend.Core.Scanning;
 /// LandscapeFolderDetector.ResolvePbrSlots) - null otherwise, meaning "nothing to add", exactly
 /// like every other unused TextureSet slot in this codebase.
 /// </summary>
+/// <param name="VanillaDerivedDiffusePath">
+/// Same identity as <paramref name="DerivedDiffusePath"/> but with any "pbr\" segment stripped -
+/// i.e. always a vanilla-looking path with just the rule folder inserted (e.g.
+/// "textures\landscape\blend\rocks01.dds", never "textures\pbr\landscape\blend\rocks01.dds").
+/// Equal to <paramref name="DerivedDiffusePath"/> itself when PBR wasn't involved at all. This -
+/// not DerivedDiffusePath - is what gets baked into a duplicated NIF's own texture slot for a
+/// BaseDerived shape: PG Patcher discovers and converts meshes by matching their DIFFUSE PATH
+/// against its own PBRNifPatcher json entries (which AutoBlend itself now also authors, keyed to
+/// this same vanilla identity - see MissingTextureGenerator), then does the actual PBR slot
+/// repoint/shader-flag conversion itself as a separate pass. Baking the already-PBR path directly
+/// into the NIF would skip that conversion entirely - the mesh would reference real PBR texture
+/// files without ever getting the PBR shader flags PG Patcher itself is responsible for setting.
+/// DerivedDiffusePath itself is still what a NEW TXST record's own Diffuse field gets set to (the
+/// AltTexDerived/ESP path) - that case has no NIF/shader-flag conversion step to preserve, since a
+/// TXST record's PBR-ness is described by its own PBRTextureSets json (matched by EditorID, not
+/// diffuse path) rather than anything PG Patcher would need to convert.
+/// </param>
 public sealed record LandscapeFolderDetection(
     LandscapeFolderRule Rule,
     string DerivedDiffusePath,
+    string VanillaDerivedDiffusePath,
     string? PbrNormalPath = null,
     string? PbrHeightPath = null,
     string? PbrRmaosPath = null);
@@ -216,8 +234,10 @@ public sealed class LandscapeFolderDetector
                     }
 
                     var (normal, height, rmaos) = ResolvePbrSlots(pbrCandidate);
-                    _textureGenerator?.TryMirrorPbrJson(pbrCandidate, nestedPbrCandidate);
-                    return new LandscapeFolderDetection(rule, nestedPbrCandidate, normal, height, rmaos);
+                    _textureGenerator?.TryMirrorPbrJson(pbrCandidate, nestedPbrCandidate, normal, height, rmaos);
+                    var vanillaNestedCandidate = StripPbrSegmentIfPresent(nestedPbrCandidate);
+                    EnsureVanillaCompanion(vanillaDiffusePath, vanillaNestedCandidate);
+                    return new LandscapeFolderDetection(rule, nestedPbrCandidate, vanillaNestedCandidate, normal, height, rmaos);
                 }
             }
         }
@@ -253,11 +273,13 @@ public sealed class LandscapeFolderDetector
             var immediateRule = _rules.FirstOrDefault(r => segments[insertIndex].Equals(r.FolderName, StringComparison.OrdinalIgnoreCase));
             if (immediateRule is not null)
             {
+                var vanillaImmediateCandidate = StripPbrSegmentIfPresent(effectiveDiffusePath);
                 if (usingPbr && pbrParentPath is not null)
                 {
-                    _textureGenerator?.TryMirrorPbrJson(pbrParentPath, effectiveDiffusePath);
+                    _textureGenerator?.TryMirrorPbrJson(pbrParentPath, effectiveDiffusePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
+                    EnsureVanillaCompanion(vanillaDiffusePath, vanillaImmediateCandidate);
                 }
-                return new LandscapeFolderDetection(immediateRule, effectiveDiffusePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
+                return new LandscapeFolderDetection(immediateRule, effectiveDiffusePath, vanillaImmediateCandidate, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
             }
         }
 
@@ -269,11 +291,13 @@ public sealed class LandscapeFolderDetector
 
             if (_fileProbe.Exists(candidatePath))
             {
+                var vanillaExistingCandidate = StripPbrSegmentIfPresent(candidatePath);
                 if (usingPbr)
                 {
-                    _textureGenerator?.TryMirrorPbrJson(effectiveDiffusePath, candidatePath);
+                    _textureGenerator?.TryMirrorPbrJson(effectiveDiffusePath, candidatePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
+                    EnsureVanillaCompanion(vanillaDiffusePath, vanillaExistingCandidate);
                 }
-                return new LandscapeFolderDetection(rule, candidatePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
+                return new LandscapeFolderDetection(rule, candidatePath, vanillaExistingCandidate, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
             }
 
             // Nothing already provides this sibling - synthesize one from whatever diffuse is
@@ -290,15 +314,42 @@ public sealed class LandscapeFolderDetector
                 && WildcardMatcher.MatchesAny(allowlistCheckPath, _autoGenerateAllowlist);
             if (canGenerate && _textureGenerator is not null && _textureGenerator.TryGenerate(effectiveDiffusePath, candidatePath, usingPbr, out _))
             {
+                var vanillaGeneratedCandidate = StripPbrSegmentIfPresent(candidatePath);
                 if (usingPbr)
                 {
-                    _textureGenerator.TryMirrorPbrJson(effectiveDiffusePath, candidatePath);
+                    _textureGenerator.TryMirrorPbrJson(effectiveDiffusePath, candidatePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
+                    EnsureVanillaCompanion(vanillaDiffusePath, vanillaGeneratedCandidate);
                 }
-                return new LandscapeFolderDetection(rule, candidatePath, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
+                return new LandscapeFolderDetection(rule, candidatePath, vanillaGeneratedCandidate, pbrNormalPath, pbrHeightPath, pbrRmaosPath);
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Ensures a vanilla-looking companion file exists at <paramref name="vanillaCandidatePath"/>
+    /// (alpha-stripped from <paramref name="vanillaSourcePath"/>) whenever PBR was involved in
+    /// resolving this detection. Without this, the PBR-only generation this detector used to do
+    /// left NOTHING on disk at the vanilla path - and that vanilla path (not the PBR one) is exactly
+    /// what gets baked into a duplicated NIF's own texture slot for a BaseDerived shape (see
+    /// LandscapeFolderDetection.VanillaDerivedDiffusePath), so every such mesh ended up referencing
+    /// a texture file that existed nowhere in the load order at all. Reproduced directly: a real
+    /// generation run's own "AutoBlend Output" never contained "textures\landscape\blend\rocks01.dds"
+    /// despite meshes baking exactly that path into their own diffuse slot. Not allowlist-gated: by
+    /// the time this is called, the PBR side has already resolved (either found on disk or just
+    /// synthesized by this same call), so completing its vanilla companion never shadows a
+    /// hand-authored texture - if one already existed at this path, Exists() below is true and
+    /// nothing happens.
+    /// </summary>
+    private void EnsureVanillaCompanion(string vanillaSourcePath, string vanillaCandidatePath)
+    {
+        if (_textureGenerator is null || _fileProbe.Exists(vanillaCandidatePath))
+        {
+            return;
+        }
+
+        _textureGenerator.TryGenerate(vanillaSourcePath, vanillaCandidatePath, isPbr: false, out _);
     }
 
     /// <summary>
@@ -347,6 +398,23 @@ public sealed class LandscapeFolderDetector
             ? landscapeIndex + 1
             : segments.Count - 1;
         segments.Insert(insertIndex, ruleFolderName);
+        return string.Join('\\', segments);
+    }
+
+    /// <summary>
+    /// "textures\pbr\landscape\blend\rocks01.dds" -&gt; "textures\landscape\blend\rocks01.dds" - the
+    /// inverse of <see cref="ToPbrPath"/>, used to recover a vanilla-looking identity from an
+    /// already-PBR-resolved candidate path (see <see cref="LandscapeFolderDetection.VanillaDerivedDiffusePath"/>).
+    /// Returns the path unchanged if it isn't PBR-prefixed at all.
+    /// </summary>
+    private static string StripPbrSegmentIfPresent(string path)
+    {
+        var segments = path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries).ToList();
+        if (segments.Count > 1 && segments[1].Equals(PbrSegment, StringComparison.OrdinalIgnoreCase))
+        {
+            segments.RemoveAt(1);
+        }
+
         return string.Join('\\', segments);
     }
 

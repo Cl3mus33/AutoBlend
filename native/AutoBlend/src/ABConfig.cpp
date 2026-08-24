@@ -12,7 +12,7 @@
 
 using namespace std;
 
-auto ABConfig::getConfigPath(const filesystem::path& exeDir) -> filesystem::path { return exeDir / "settings.json"; }
+auto ABConfig::getConfigPath(const filesystem::path& exeDir) -> filesystem::path { return exeDir / "AutoBlend" / "settings.json"; }
 
 auto ABConfig::load(const filesystem::path& exeDir) -> ABParams
 {
@@ -29,6 +29,20 @@ auto ABConfig::load(const filesystem::path& exeDir) -> ABParams
     const auto localPath = getConfigPath(exeDir);
     if (filesystem::exists(localPath)) {
         return loadFrom(localPath);
+    }
+
+    // One-time migration from the OLD flat "settings.json" sitting directly beside the exe - under
+    // MO2's own USVFS this lands at "overwrite\settings.json" (no subfolder), a name generic
+    // enough to risk colliding with another tool's own config landing in that same shared
+    // overwrite root. Moving into an "AutoBlend\" subfolder (matching how PGPatcher itself already
+    // namespaces its own "PGPatcher\cfg\settings.json") avoids that collision going forward. Reads
+    // this copy's own OLD flat file only - never another copy's - same "no shared fallback" rule
+    // as above, just relocating rather than sharing.
+    const auto legacyFlatPath = exeDir / "settings.json";
+    if (filesystem::exists(legacyFlatPath)) {
+        auto params = loadFrom(legacyFlatPath);
+        saveTo(localPath, params);
+        return params;
     }
 
     return ABParams {};
@@ -108,11 +122,33 @@ auto ABConfig::loadFrom(const filesystem::path& configFilePath) -> ABParams
             if (!hasRoadsRule) {
                 params.meshBlacklist.push_back(LR"(*\roads\*)");
             }
+
+            // Dungeon/cave meshes (Nordic ruins, mine tunnels, etc.) often reuse the same rock/dirt
+            // landscape textures as real terrain, with the same false-positive risk as the roads
+            // case above (reported directly). Same once-only backfill for a settings.json saved
+            // before this rule existed.
+            const bool hasDungeonsRule = std::any_of(params.meshBlacklist.begin(), params.meshBlacklist.end(),
+                [](const std::wstring& pattern) { return _wcsicmp(pattern.c_str(), LR"(*\dungeons\*)") == 0; });
+            if (!hasDungeonsRule) {
+                params.meshBlacklist.push_back(LR"(*\dungeons\*)");
+            }
         }
         if (configJ.contains("EditorIdBlacklistKeywords")) {
             params.editorIdBlacklistKeywords.clear();
             for (const auto& item : configJ["EditorIdBlacklistKeywords"]) {
                 params.editorIdBlacklistKeywords.push_back(StringUtil::utf8toUTF16(item.get<string>()));
+            }
+
+            // Same once-only backfill pattern as the mesh blacklist rules above, for a
+            // settings.json saved before these keywords were added to the defaults - weather-variant
+            // ("wet"), road, cave, and mine-tunnel records where alpha testing is intentional and
+            // should not become alpha blending.
+            for (const auto* keyword : { L"wet", L"road", L"cave", L"mine" }) {
+                const bool hasKeyword = std::any_of(params.editorIdBlacklistKeywords.begin(), params.editorIdBlacklistKeywords.end(),
+                    [keyword](const std::wstring& existing) { return _wcsicmp(existing.c_str(), keyword) == 0; });
+                if (!hasKeyword) {
+                    params.editorIdBlacklistKeywords.emplace_back(keyword);
+                }
             }
         }
         if (configJ.contains("TextureSetNamingTemplate")) {

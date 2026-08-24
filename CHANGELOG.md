@@ -5,7 +5,7 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
-## [1.0.11] - 2026-08-23
+## [1.0.11] - 2026-08-24
 
 ### Fixed
 - Fixed PBR generation silently creating zero TextureSets for shapes whose source is an existing
@@ -18,23 +18,85 @@ All notable changes to this project are documented here. Format loosely follows
   embedded default instead. The allowlist check now strips a leading PBR path segment before
   comparing, so it always sees the texture's true vanilla identity regardless of which path
   resolved it.
+- Fixed "Generate PBR Slots" never actually generating the plain, vanilla-looking "blend" texture
+  file (e.g. `textures\landscape\blend\rocks01.dds`) whenever a PBR sibling was involved - only its
+  PBR-prefixed counterpart (`textures\pbr\landscape\blend\rocks01.dds`) ever got synthesized. Every
+  such mesh's own diffuse texture slot is intentionally baked with the vanilla-looking path (so PG
+  Patcher can discover and convert it - see below), which meant the mesh referenced a texture file
+  that existed nowhere in the load order at all: a hard missing-texture ("purple") result,
+  independent of whether PG Patcher ever runs. AutoBlend now always completes both the vanilla and
+  the PBR sibling together.
+- Fixed the last-resort, from-scratch PBRNifPatcher json AutoBlend authors for a texture with no
+  existing config anywhere using a bare filename (e.g. `"dirt02.dds"`) as its match key. PG Patcher's
+  own matching is a raw path-suffix match with no folder-boundary enforcement, so a bare filename can
+  silently hijack an unrelated texture of the same name anywhere else in the load order - including
+  the very parent (non-blend) texture this variant was derived from. The match key is now always
+  fully qualified with its folder path (e.g. `"landscape\blend\dirt02"`).
+- Fixed cloning an existing PBRNifPatcher entry from a combined, multi-texture json (e.g. Sloppy's
+  own single "Sloppy Vanilla Landscapes.json") rewriting every entry in that file to the same match
+  value, instead of cloning only the one entry that actually matches. Simplified to a single
+  code path (find the one matching entry anywhere in the load order, clone it) used for every case.
+- The `settings.json` a copy of AutoBlend writes now lives in its own `AutoBlend\` subfolder next to
+  the exe (e.g. `AutoBlend\settings.json`) instead of directly as a bare `settings.json` - under
+  MO2's own USVFS this previously landed at `overwrite\settings.json`, a name generic enough to risk
+  colliding with another tool's own config landing in that same shared overwrite root. Existing
+  settings are migrated automatically, once, the first time this version runs.
+- Fixed a newly-typed row in the Mesh Blacklist / EditorID Keywords / Auto-Generate Allowlist lists
+  being silently dropped if the user clicked OK/Generate (or changed language/theme) immediately
+  after typing, without pressing Enter or clicking elsewhere first to commit the in-place edit -
+  reported directly: a newly added EditorID keyword never made it into `settings.json` despite
+  clicking Generate right after typing it, with no error shown. Any pending edit is now committed
+  before its list is read.
+- **Fixed every derived TextureSet's Diffuse/Normal/Height/RMAOS fields carrying a redundant
+  leading `textures\` segment** (e.g. `textures\PBR\Landscape\blend\Rocks01.dds` instead of the
+  correct `PBR\Landscape\blend\Rocks01.dds`) - confirmed directly against a real vanilla TXST
+  record's own field, which never carries that segment. A TextureSet's own asset link is always
+  relative to `Data\textures\` already; the doubled path silently resolved to a nonexistent
+  `Data\textures\textures\...` file in game - a hard missing-texture ("purple") result on every
+  single derived TextureSet this whole session's investigation had been chasing. This was the
+  actual root cause underneath most of the "purple texture" reports.
+- Fixed a derived TextureSet (and its own PBRTextureSets json) being named after the NIF SHAPE's
+  own name rather than the actual texture it uses, for shapes with no existing Alternate Texture
+  override. A shape's own name can be completely unrelated to its texture (a decorative rock
+  sub-object nifly auto-named e.g. `RockPileM01:8` inside some unrelated static mesh, rendering
+  with a totally different "Rocks01" texture) - producing confusing names like
+  `BlendRockPileM01` with no connection to any real "RockPileM01" texture, and in the worst case
+  (a colon in the auto-generated name) silently writing the json into a hidden NTFS stream instead
+  of a real file. TextureSets are now always named after the actual resolved texture.
+- **Eliminated the "\_blend2", "\_blend3", ... mesh duplication AutoBlend could produce when many
+  different references shared one physical mesh file with different Alternate Texture needs.**
+  Every shape - whether its diffuse came from an existing override or the mesh's own embedded
+  default - now derives/reuses a TextureSet and gets it assigned via a new Alternate Texture, the
+  same way an existing override always worked; the mesh itself only ever needs its alpha-blend
+  mode flipped once, uniformly, so it's patched in place in the vast majority of cases (mesh
+  duplication now only happens for the one remaining legitimate reason: a mesh shared between an
+  in-scope record and a blacklisted one).
+- Mesh Blacklist and EditorID Keywords now include `*\dungeons\*` and `wet`/`road`/`cave`/`mine`
+  by default (dungeon/cave meshes and weather-variant/road/mine records reuse ordinary landscape
+  textures the same way roads already did in 1.0.10, with the same false-positive risk). Existing
+  installs get these backfilled automatically, once, the same way the 1.0.10 roads rule was.
 
 ### Added
 - AutoBlend now generates its own `PBRNifPatcher\...json` configs for every PBR "blend" texture it
   creates, so PG Patcher picks up author-tuned material parameters (roughness, parallax,
   displacement, glint, etc.) instead of falling back to its own bare "mark as PBR, no parameters"
-  default. Three sources are tried in order: (1) a dedicated json already sitting at the exact path
-  our own naming convention expects, cloned and re-pointed at the new nested path; (2) failing that,
-  every PBRNifPatcher json anywhere in the load order is searched for an entry that already covers
-  the source texture - this is what actually matters for packs like "Sloppy Vanilla Landscapes PBR",
-  which bundle every one of their entries into a single arbitrarily-named combined json rather than
-  one file per texture, so a plain "does a file exist at the expected path" check could never find
-  them; (3) only if nothing anywhere already describes the texture is a fresh json authored from
-  scratch, using the same default parameters and bare-filename `match_diffuse` convention
-  AutoSeasons' own equivalent generator already uses. When multiple mods each describe the same
-  texture in their own separate json, the mod highest in the MO2 load order wins - matching PG
-  Patcher's own documented conflict-resolution order (mod order first, then alphabetical filename,
-  then entry position).
+  default - including explicit `slot2`/`slot4`/`slot6` overrides pointing Normal/Height/RMAOS at the
+  real PBR sibling files, since PG Patcher otherwise auto-derives those from the SAME location as the
+  matched diffuse (confirmed directly against PG Patcher's own source), which AutoBlend's own "blend"
+  folder never populates. Two sources are tried in order: (1) every PBRNifPatcher json anywhere in
+  the load order is searched for a single entry that already covers the source texture - this is
+  what actually matters for packs like "Sloppy Vanilla Landscapes PBR", which bundle every one of
+  their entries into a single arbitrarily-named combined json rather than one file per texture, so a
+  plain "does a file exist at the expected path" check could never find them; (2) only if nothing
+  anywhere already describes the texture is a fresh json authored from scratch, using the same
+  default parameters AutoSeasons' own equivalent generator already uses. When multiple mods each
+  describe the same texture in their own separate json, the mod highest in the MO2 load order wins -
+  matching PG Patcher's own documented conflict-resolution order (mod order first, then alphabetical
+  filename, then entry position).
+- AutoBlend also generates a `PBRTextureSets\{TextureSet EditorID}.json` for every new PBR
+  TextureSet it creates in its own ESP - Community Shaders' own PBR material config for that record,
+  matched purely by EditorID rather than texture path. Cloned verbatim from the source TextureSet's
+  own same-named json if one exists anywhere in the load order, else a minimal default.
 
 ## [1.0.10] - 2026-08-23
 

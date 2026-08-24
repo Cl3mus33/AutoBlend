@@ -13,22 +13,25 @@ public sealed record NifPatchResult(string SourcePath, IReadOnlyList<ShapePatchR
 /// Patches exactly the shapes the caller identified as in-scope (matching a landscape folder
 /// detection) — never shapes merely discovered by re-scanning for NiAlphaProperty, since a mesh
 /// can carry other alpha-tested shapes (e.g. an unrelated decal) that were never meant to blend.
-/// For each targeted shape: rewrites the embedded diffuse slot to the detected statics/blending
-/// variant (so the mesh renders correctly on its own, without depending on every reference
-/// getting an ESP-level Alternate Texture), and flips alpha testing to alpha blending.
+/// Flips alpha testing to alpha blending for each targeted shape, and - for shapes whose own
+/// embedded default resolves to a "blend" sibling - rewrites the raw diffuse slot to that
+/// vanilla-looking identity too (PatchOrchestrator passes the SAME value for a given shape
+/// regardless of which record group is being processed, so this never creates a need for more
+/// than one physical copy of the mesh: any record with its own Alternate Texture overrides this
+/// raw slot completely at runtime anyway, so baking a shared value here is always safe). A shape
+/// reachable only via some record's own existing Alternate Texture, with no resolving embedded
+/// default of its own, gets its alpha mode flipped only - there's no vanilla identity to bake for
+/// it - and PatchOrchestrator derives/assigns its own TextureSet at the ESP level instead.
 /// </summary>
 public sealed class NiAlphaBlendPatcher
 {
     /// <summary>
     /// Loads <paramref name="sourcePath"/>, patches every shape named in
     /// <paramref name="derivedDiffuseByShapeName"/> (alpha test→blend, plus a diffuse slot rewrite
-    /// when the value is non-null — a null value means "convert alpha mode only", used when an
-    /// Alternate Texture override already supplies the diffuse at the ESP level and baking one into
-    /// the shared mesh would be wrong since other records sharing this exact physical file may
-    /// still want their own, different Alternate Texture to win), and writes the result to
-    /// <paramref name="destPath"/> (which may equal sourcePath for an in-place patch). Returns null
-    /// if none of the named shapes were found with a NiAlphaProperty — callers should treat that as
-    /// "nothing to do" rather than an error.
+    /// when the value is non-null), and writes the result to <paramref name="destPath"/> (which
+    /// may equal sourcePath for an in-place patch). Returns null if none of the named shapes were
+    /// found with a NiAlphaProperty — callers should treat that as "nothing to do" rather than an
+    /// error.
     /// </summary>
     public NifPatchResult? Patch(string sourcePath, string destPath, IReadOnlyDictionary<string, string?> derivedDiffuseByShapeName)
     {

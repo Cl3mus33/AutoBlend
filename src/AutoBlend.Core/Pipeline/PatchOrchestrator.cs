@@ -32,9 +32,12 @@ public sealed class PatchOrchestrator
         /// embedded default resolves to a statics/blending sibling - leave this shape alone.</summary>
         Untouched,
 
-        /// <summary>The mesh's own embedded (vanilla, no-override) diffuse resolves - uniform
-        /// across every record sharing this mesh, since it does not depend on any per-record
-        /// override.</summary>
+        /// <summary>The mesh's own embedded (vanilla, no-override) diffuse resolves - handled
+        /// identically to AltTexDerived from here on: a TXST is derived from the mesh's own
+        /// embedded slots and assigned via a brand-new Alternate Texture, exactly as if some other
+        /// mod had already shipped that override. Never bakes anything into the mesh itself - only
+        /// the alpha-blend mode is ever mesh-level, and that's uniform across every record sharing
+        /// this mesh regardless of kind (see the alpha-flip pass in Run()).</summary>
         BaseDerived,
 
         /// <summary>This specific record already carries an Alternate Texture on this shape, and
@@ -329,189 +332,193 @@ public sealed class PatchOrchestrator
                     perRecordTreatment[formKey] = ClassifyRecord(formKey, recordKinds[formKey], alphaShapes, env, folderDetector, warnings);
                 }
 
-                // Base-derived shapes (embedded default resolves) get baked + alpha-converted
-                // identically for EVERY record sharing this mesh, regardless of what any given
-                // record's own Alternate Texture situation is - an unrelated or non-resolving
-                // AltTex on that same shape does not change what the physical file needs, since
-                // AltTex only overrides which TXST is displayed, never the alpha-blend mode. So the
-                // only thing that can ever require a record to diverge onto its own physical
-                // duplicate is a shape where the base does NOT resolve but THIS record's own AltTex
-                // does - grouping only needs to key on the SET of such shape names (not which
-                // specific texture each resolves to, since two records deriving from different
-                // source textures on the same shape still need the identical physical treatment:
-                // alpha-mode flipped, no diffuse baked, the ESP-level AltTex supplies the diffuse).
-                var groups = new Dictionary<string, List<FormKey>>();
-                foreach (var (formKey, treatment) in perRecordTreatment)
+                // Every shape treatment (BaseDerived - the mesh's own embedded default resolves - or
+                // AltTexDerived - a specific record's existing Alternate Texture resolves) gets
+                // handled identically from here on: derive/reuse a TXST and assign it via a new
+                // Alternate Texture, exactly like an existing AltTex override always did. Neither
+                // kind ever bakes a diffuse into the mesh itself anymore, so the ONLY thing the
+                // physical file needs is the SAME alpha-mode flip for every shape that has AT LEAST
+                // ONE non-Untouched treatment across ANY record sharing it - uniform, mesh-level,
+                // never record-specific. That means every mesh needs at most ONE physical output
+                // (patched in place, per plan.PatchInPlace - or the one blacklist-mixing duplicate
+                // MeshUsageIndex already computed) - never a second, third, etc. "_blendN" variant.
+                var shapesNeedingAlphaFlip = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var treatment in perRecordTreatment.Values)
                 {
-                    var altTexShapeNames = treatment
-                        .Where(kv => kv.Value.Kind == ShapeTreatmentKind.AltTexDerived)
-                        .Select(kv => kv.Key)
-                        .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-                        .ToList();
-
-                    var hasAnyBenefit = altTexShapeNames.Count > 0 || treatment.Values.Any(t => t.Kind == ShapeTreatmentKind.BaseDerived);
-                    if (!hasAnyBenefit)
+                    foreach (var (shapeName, t) in treatment)
                     {
-                        continue;
+                        if (t.Kind != ShapeTreatmentKind.Untouched)
+                        {
+                            shapesNeedingAlphaFlip.Add(shapeName);
+                        }
                     }
-
-                    var signature = string.Join(",", altTexShapeNames);
-                    if (!groups.TryGetValue(signature, out var list))
-                    {
-                        list = new List<FormKey>();
-                        groups[signature] = list;
-                    }
-                    list.Add(formKey);
                 }
 
-                if (groups.Count == 0)
+                if (shapesNeedingAlphaFlip.Count == 0)
                 {
                     continue;
                 }
 
-                var patcher = new NiAlphaBlendPatcher();
-                var variantIndex = 0;
-
-                foreach (var (signature, formKeys) in groups)
+                // For every in-scope shape whose OWN embedded default resolves, ALSO rewrite its raw
+                // diffuse slot to the vanilla-looking "blend" identity (VanillaDerivedDiffusePath) -
+                // safe to do unconditionally now, unlike before the ESP always drives every record's
+                // treatment: any record with its own Alternate Texture overrides this raw slot
+                // completely at runtime regardless of what's baked here, so the SAME value can be
+                // written once for the whole mesh without creating any per-record divergence (no
+                // duplication needed for this). This still matters for two real cases: (1) a record
+                // with NO override of its own renders straight from this slot, so it needs to be the
+                // real "blend" texture, not the original blend-edge one; (2) PG Patcher discovers and
+                // converts meshes by matching a shape's CURRENT diffuse path against its own
+                // PBRNifPatcher json entries (which AutoBlend itself authors at this same "blend"
+                // identity) - leaving the raw slot at its original, non-blend path would give PG
+                // Patcher nothing to match. Shapes with no EmbeddedDetection at all (only reachable
+                // via some record's own AltTex, never the mesh's own default) get alpha mode flipped
+                // only - there's no sensible "vanilla blend" identity to bake for those.
+                //
+                // (An earlier variant of this line briefly baked DerivedDiffusePath - the real PBR
+                // path - instead, to test whether that helped PG Patcher pick up these shapes. Root
+                // caused instead to DerivedTextureSetFactory's own separate "textures\" double-prefix
+                // bug - reverted back to VanillaDerivedDiffusePath here once that was confirmed.)
+                var alphaConversionByShapeName = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+                foreach (var shapeName in shapesNeedingAlphaFlip)
                 {
-                    var alphaConversionByShapeName = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var (shapeName, alphaShape) in alphaShapes)
-                    {
-                        if (alphaShape.EmbeddedDetection is not null)
-                        {
-                            alphaConversionByShapeName[shapeName] = alphaShape.EmbeddedDetection.DerivedDiffusePath;
-                        }
-                    }
+                    alphaConversionByShapeName[shapeName] = alphaShapes.TryGetValue(shapeName, out var alphaShape) && alphaShape.EmbeddedDetection is not null
+                        ? alphaShape.EmbeddedDetection.VanillaDerivedDiffusePath
+                        : null;
+                }
 
-                    var isDefaultGroup = signature.Length == 0;
-                    if (!isDefaultGroup)
-                    {
-                        foreach (var shapeName in signature.Split(','))
-                        {
-                            // Alpha mode only - the ESP-level Alternate Texture supplies the diffuse.
-                            alphaConversionByShapeName[shapeName] = null;
-                        }
-                    }
+                string outputMeshPath;
+                string? duplicateRelPath = null;
+                if (plan.PatchInPlace)
+                {
+                    outputMeshPath = Path.Combine(_settings.OutputLocation, meshRelativeToData);
+                }
+                else
+                {
+                    duplicateRelPath = MeshUsageIndex.BuildDuplicateMeshPath(meshPath, 0);
+                    outputMeshPath = Path.Combine(_settings.OutputLocation, "meshes", duplicateRelPath);
+                }
 
-                    // The "default" group (no record-specific AltTex-driven shape) can reuse the
-                    // shared mesh path, exactly like before - but only if no blacklisted record also
-                    // shares this path (plan.PatchInPlace already reflects that). Any group with at
-                    // least one AltTexDerived shape always needs its own duplicate, since only
-                    // records in that group should get that shape's alpha mode flipped.
-                    var canUseSharedPath = isDefaultGroup && plan.PatchInPlace;
-
-                    string outputMeshPath;
-                    string? duplicateRelPath = null;
-                    if (canUseSharedPath)
+                var patcher = new NiAlphaBlendPatcher();
+                var patchResult = patcher.Patch(extractedPath, outputMeshPath, alphaConversionByShapeName);
+                if (patchResult is not null)
+                {
+                    if (duplicateRelPath is not null)
                     {
-                        outputMeshPath = Path.Combine(_settings.OutputLocation, meshRelativeToData);
+                        meshesDuplicated++;
                     }
                     else
                     {
-                        duplicateRelPath = MeshUsageIndex.BuildDuplicateMeshPath(meshPath, variantIndex++);
-                        outputMeshPath = Path.Combine(_settings.OutputLocation, "meshes", duplicateRelPath);
+                        meshesPatchedInPlace++;
+                    }
+                }
+
+                // Patched in place: every candidate record benefits (nothing was blacklisted-mixed,
+                // or plan.PatchInPlace wouldn't be true). Duplicated: only the specific in-scope
+                // records MeshUsageIndex already identified get redirected - a blacklisted record
+                // sharing this same mesh keeps pointing at the untouched original.
+                var recordsToAssign = plan.PatchInPlace ? (IEnumerable<FormKey>)perRecordTreatment.Keys : plan.DuplicateForRecords;
+
+                foreach (var formKey in recordsToAssign)
+                {
+                    if (!perRecordTreatment.TryGetValue(formKey, out var treatment))
+                    {
+                        continue;
                     }
 
-                    var patchResult = patcher.Patch(extractedPath, outputMeshPath, alphaConversionByShapeName);
-                    if (patchResult is not null)
+                    Model? model = null;
+                    if (duplicateRelPath is not null)
                     {
-                        if (duplicateRelPath is not null)
-                        {
-                            meshesDuplicated++;
-                        }
-                        else
-                        {
-                            meshesPatchedInPlace++;
-                        }
-                    }
-
-                    foreach (var formKey in formKeys)
-                    {
-                        Model? model = null;
-                        if (duplicateRelPath is not null)
-                        {
-                            model = GetOrCreateOverrideModel(formKey, recordKinds[formKey], patchMod, env, warnings);
-                            if (model is null)
-                            {
-                                continue;
-                            }
-
-                            model.File.GivenPath = duplicateRelPath;
-                        }
-
-                        var treatment = perRecordTreatment[formKey];
-                        var hasAltTex = treatment.Values.Any(t => t.Kind == ShapeTreatmentKind.AltTexDerived);
-                        if (!hasAltTex)
-                        {
-                            // Benefits purely from the physical mesh (shared path or duplicate) -
-                            // nothing needs to change at the ESP level for this record.
-                            continue;
-                        }
-
-                        model ??= GetOrCreateOverrideModel(formKey, recordKinds[formKey], patchMod, env, warnings);
+                        model = GetOrCreateOverrideModel(formKey, recordKinds[formKey], patchMod, env, warnings);
                         if (model is null)
                         {
                             continue;
                         }
 
-                        foreach (var (shapeName, t) in treatment)
+                        model.File.GivenPath = duplicateRelPath;
+                    }
+
+                    var hasAnyDerived = treatment.Values.Any(t => t.Kind != ShapeTreatmentKind.Untouched);
+                    if (!hasAnyDerived)
+                    {
+                        // Benefits purely from the physical mesh (shared path or duplicate) -
+                        // nothing needs to change at the ESP level for this record.
+                        continue;
+                    }
+
+                    model ??= GetOrCreateOverrideModel(formKey, recordKinds[formKey], patchMod, env, warnings);
+                    if (model is null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var (shapeName, t) in treatment)
+                    {
+                        if (t.Kind == ShapeTreatmentKind.Untouched)
                         {
-                            if (t.Kind != ShapeTreatmentKind.AltTexDerived)
-                            {
-                                continue;
-                            }
-
-                            // Keyed on the actual resolved texture path being derived - NOT
-                            // t.Source!.SourceName, which for a "BaseDerived" shape (see
-                            // ClassifyRecord below) is the NIF SHAPE's own name (e.g. "RockSkirt"),
-                            // not the texture's identity. Generic shape names like "RockSkirt" are
-                            // reused across many unrelated meshes with completely different diffuse
-                            // textures (e.g. MountainTrim01's own "RockSkirt" uses SnowRocks01,
-                            // while some other landscape mesh's own "RockSkirt" uses Rocks01) - a
-                            // shape-name-keyed cache collided across them, so whichever mesh
-                            // happened to be processed first "won" the cache entry and every other
-                            // mesh sharing that shape name silently inherited its WRONG derived
-                            // TextureSet instead of creating its own. Reproduced directly: a vanilla
-                            // + ERM - Enhanced Rocks and Mountains test run assigned the SAME
-                            // "Rocks01"-derived TextureSet to every "RockSkirt" shape across
-                            // MountainTrim01/02/03 and their Wet variants, even though several of
-                            // them embed a different vanilla diffuse. DerivedDiffusePath already
-                            // encodes the rule folder in its own path (e.g.
-                            // "textures\landscape\blend\snowrocks01.dds"), so it alone is a
-                            // sufficient and correct cache key.
-                            var cacheKey = t.Detection!.DerivedDiffusePath;
-                            if (!derivedTxstCache.TryGetValue(cacheKey, out var derivedTxst))
-                            {
-                                try
-                                {
-                                    derivedTxst = txstFactory.CreateDerived(t.Source!, t.Detection!);
-                                }
-                                catch (Exception ex)
-                                {
-                                    // A source TextureSet's own texture path came from a third-party
-                                    // plugin, unvalidated - some mod authors' CK setups bake in a
-                                    // malformed path (e.g. an absolute path missing "Data" entirely,
-                                    // which Mutagen's AssetLink construction rejects outright).
-                                    // Skipping just this one derived TextureSet (and every shape that
-                                    // would have used it) keeps one bad mod from aborting the whole
-                                    // run for every other record - matches the existing "left
-                                    // untouched"/"skipped" resilience pattern used elsewhere here.
-                                    warnings.Add($"Could not create derived TextureSet for '{t.Source!.SourceName}' "
-                                        + $"({t.Detection!.Rule.FolderName}): {ex.Message} - left untouched.");
-                                    derivedTxst = null;
-                                }
-
-                                derivedTxstCache[cacheKey] = derivedTxst;
-                            }
-
-                            if (derivedTxst is null)
-                            {
-                                continue;
-                            }
-
-                            AlternateTextureAssigner.Assign(model, shapeName, t.ShapeIndex, derivedTxst);
-                            altTexAssigned++;
+                            continue;
                         }
+
+                        // Keyed on the actual resolved texture path being derived - NOT
+                        // t.Source!.SourceName, which for a "BaseDerived" shape (see
+                        // ClassifyRecord below) is the NIF SHAPE's own name (e.g. "RockSkirt"),
+                        // not the texture's identity. Generic shape names like "RockSkirt" are
+                        // reused across many unrelated meshes with completely different diffuse
+                        // textures (e.g. MountainTrim01's own "RockSkirt" uses SnowRocks01,
+                        // while some other landscape mesh's own "RockSkirt" uses Rocks01) - a
+                        // shape-name-keyed cache collided across them, so whichever mesh
+                        // happened to be processed first "won" the cache entry and every other
+                        // mesh sharing that shape name silently inherited its WRONG derived
+                        // TextureSet instead of creating its own. Reproduced directly: a vanilla
+                        // + ERM - Enhanced Rocks and Mountains test run assigned the SAME
+                        // "Rocks01"-derived TextureSet to every "RockSkirt" shape across
+                        // MountainTrim01/02/03 and their Wet variants, even though several of
+                        // them embed a different vanilla diffuse. DerivedDiffusePath already
+                        // encodes the rule folder in its own path (e.g.
+                        // "textures\landscape\blend\snowrocks01.dds"), so it alone is a
+                        // sufficient and correct cache key.
+                        var cacheKey = t.Detection!.DerivedDiffusePath;
+                        if (!derivedTxstCache.TryGetValue(cacheKey, out var derivedTxst))
+                        {
+                            try
+                            {
+                                derivedTxst = txstFactory.CreateDerived(t.Source!, t.Detection!);
+                            }
+                            catch (Exception ex)
+                            {
+                                // A source TextureSet's own texture path came from a third-party
+                                // plugin, unvalidated - some mod authors' CK setups bake in a
+                                // malformed path (e.g. an absolute path missing "Data" entirely,
+                                // which Mutagen's AssetLink construction rejects outright).
+                                // Skipping just this one derived TextureSet (and every shape that
+                                // would have used it) keeps one bad mod from aborting the whole
+                                // run for every other record - matches the existing "left
+                                // untouched"/"skipped" resilience pattern used elsewhere here.
+                                warnings.Add($"Could not create derived TextureSet for '{t.Source!.SourceName}' "
+                                    + $"({t.Detection!.Rule.FolderName}): {ex.Message} - left untouched.");
+                                derivedTxst = null;
+                            }
+
+                            if (derivedTxst is not null && t.Detection!.PbrNormalPath is not null)
+                            {
+                                // Community Shaders' own PBR material config for the new TXST
+                                // record (see MissingTextureGenerator.TryMirrorPbrTextureSetJson) -
+                                // only meaningful once PBR generation actually resolved a sibling
+                                // for this texture; a plain statics/blend derivation with no PBR
+                                // data has nothing worth describing here.
+                                textureGenerator?.TryMirrorPbrTextureSetJson(t.Source!.SourceName, derivedTxst.EditorID!);
+                            }
+
+                            derivedTxstCache[cacheKey] = derivedTxst;
+                        }
+
+                        if (derivedTxst is null)
+                        {
+                            continue;
+                        }
+
+                        AlternateTextureAssigner.Assign(model, shapeName, t.ShapeIndex, derivedTxst);
+                        altTexAssigned++;
                     }
                 }
                 }
@@ -539,9 +546,15 @@ public sealed class PatchOrchestrator
         {
             Report($"Auto-generated {textureGenerator.GeneratedCount} missing statics/blending texture(s)"
                 + (textureGenerator.FailedCount > 0 ? $" ({textureGenerator.FailedCount} attempt(s) failed - see log)." : "."));
+            textureGenerator.WritePbrNifPatcherJson();
             if (textureGenerator.MirroredJsonCount > 0)
             {
-                Report($"Mirrored {textureGenerator.MirroredJsonCount} PBRNifPatcher json config(s) for generated/nested PBR variant(s).");
+                Report($"Wrote {textureGenerator.MirroredJsonCount} PBRNifPatcher entry/entries for generated/nested PBR variant(s) "
+                    + "into a single combined json.");
+            }
+            if (textureGenerator.MirroredTextureSetJsonCount > 0)
+            {
+                Report($"Wrote {textureGenerator.MirroredTextureSetJsonCount} PBRTextureSets json config(s) for derived PBR TextureSet(s).");
             }
             warnings.AddRange(textureGenerator.Diagnostics);
         }
@@ -650,7 +663,7 @@ public sealed class PatchOrchestrator
                 var alreadyDone = alphaShape.AlreadyAlphaBlended
                     && string.Equals(
                         alphaShape.EmbeddedDiffuse.Replace('/', '\\'),
-                        alphaShape.EmbeddedDetection.DerivedDiffusePath.Replace('/', '\\'),
+                        alphaShape.EmbeddedDetection.VanillaDerivedDiffusePath.Replace('/', '\\'),
                         StringComparison.OrdinalIgnoreCase);
 
                 result[shapeName] = alreadyDone

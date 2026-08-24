@@ -1,3 +1,4 @@
+using System.Linq;
 using AutoBlend.Core.Scanning;
 using Mutagen.Bethesda.Plugins.Assets;
 using Mutagen.Bethesda.Skyrim;
@@ -30,27 +31,39 @@ public sealed class DerivedTextureSetFactory
 
     public TextureSet CreateDerived(SourceTexturePaths source, LandscapeFolderDetection detection)
     {
-        // source.SourceName is the WINNING TextureSet's own EditorID when the shape's diffuse came
-        // from an existing Alternate Texture (as opposed to a mesh's plain embedded default) - and
-        // that TXST can itself already be named after the rule folder (e.g. Vanaheimr's own
-        // "StaticsRocks01" for a texture they already ship pre-blended). The default naming
-        // template ("{Type}{Name}") then doubles the type label up front - "StaticsStaticsRocks01"
-        // - reported directly. Strip a leading, already-present type label from the name first so
-        // the template's own "{Type}" doesn't repeat it.
-        var effectiveSourceName = source.SourceName.StartsWith(detection.Rule.TypeLabel, StringComparison.OrdinalIgnoreCase)
-            ? source.SourceName[detection.Rule.TypeLabel.Length..]
-            : source.SourceName;
+        // Named after the actual resolved TEXTURE (e.g. "Rocks01", from
+        // VanillaDerivedDiffusePath's own filename), not source.SourceName - which, for a
+        // BaseDerived shape (see PatchOrchestrator.ShapeTreatmentKind), is the NIF SHAPE's own
+        // name, not the texture's identity. A shape's own name can be completely unrelated to what
+        // texture it happens to use (a decorative rock sub-object nifly auto-named "RockPileM01:8"
+        // inside some unrelated static mesh, rendering with a totally different "Rocks01" texture)
+        // - reported directly as a derived TextureSet/PBRTextureSets json named "BlendRockPileM01"
+        // for a shape that has nothing to do with any "RockPileM01" texture at all. The texture's
+        // own filename is also what nifly auto-renames to disambiguate shapes (e.g. "RockPileM01:8",
+        // "MountainTrim01_Rocks:0 - L2_Rocks:0") can never be - it's a clean file basename, no
+        // colons/spaces/dashes to sanitize away. Still strips a leading, already-present type label
+        // (e.g. a texture pack's own file already named "StaticsRocks01.dds") so the template's own
+        // "{Type}" doesn't double it into "StaticsStaticsRocks01" - reported directly for that case.
+        var textureBaseName = Path.GetFileNameWithoutExtension(detection.VanillaDerivedDiffusePath);
+        var effectiveSourceName = textureBaseName.StartsWith(detection.Rule.TypeLabel, StringComparison.OrdinalIgnoreCase)
+            ? textureBaseName[detection.Rule.TypeLabel.Length..]
+            : textureBaseName;
 
-        var derivedName = _namingTemplate
+        // Sanitized as a last resort (letters/digits/underscore only) in case some texture pack's
+        // own filename still carries something non-conventional - keeps the EditorID CK-safe and
+        // anything derived from it (e.g. MissingTextureGenerator.TryMirrorPbrTextureSetJson's own
+        // output filename) filesystem-safe, without depending on every texture pack's own file
+        // naming being clean.
+        var derivedName = SanitizeEditorId(_namingTemplate
             .Replace("{Type}", detection.Rule.TypeLabel)
-            .Replace("{Name}", effectiveSourceName);
+            .Replace("{Name}", effectiveSourceName));
 
         var derived = new TextureSet(_patchMod, derivedName)
         {
             // A freshly constructed TextureSet does not pre-populate its AssetLink slots - each
             // one must be assigned a new instance rather than mutated via .GivenPath on a
             // possibly-null existing reference.
-            Diffuse = new AssetLink<SkyrimTextureAssetType>(detection.DerivedDiffusePath),
+            Diffuse = ToAssetLink(detection.DerivedDiffusePath),
             NormalOrGloss = ToAssetLink(detection.PbrNormalPath ?? source.NormalOrGloss),
             // Height/EnvironmentMaskOrSubsurfaceTint previously ONLY ever came from PBR detection,
             // with no fallback to the source TextureSet's own values the way NormalOrGloss already
@@ -68,8 +81,45 @@ public sealed class DerivedTextureSetFactory
         return derived;
     }
 
-    private static AssetLink<SkyrimTextureAssetType> ToAssetLink(string? sourcePath) =>
-        string.IsNullOrEmpty(sourcePath)
-            ? new AssetLink<SkyrimTextureAssetType>()
-            : new AssetLink<SkyrimTextureAssetType>(sourcePath);
+    /// <summary>
+    /// A TextureSet's own AssetLink&lt;SkyrimTextureAssetType&gt; slots are always relative to
+    /// "Data\textures\", never carrying that segment themselves - confirmed directly against a real
+    /// vanilla TXST record's own Normal/Gloss field ("DLC02\Landscape\volcanic_ash_rocks_01_n.dds",
+    /// no "textures\" anywhere). Every path this factory works with, though, DOES carry a leading
+    /// "textures\" - LandscapeFolderDetection's own DerivedDiffusePath/PbrNormalPath/PbrHeightPath/
+    /// PbrRmaosPath always do (that's the convention used everywhere else, e.g. the file probe,
+    /// which needs the full Data-relative path), and so does source.NormalOrGloss/Height/
+    /// EnvironmentMaskOrSubsurfaceTint whenever it came from a mesh's own EMBEDDED NIF slots
+    /// (BaseDerived - NifShapeTextureResolver reads the raw shader texture path, which the game
+    /// itself stores WITH "textures\"); only when source's own fields came from an EXISTING TXST
+    /// record's own GivenPath (AltTexDerived) are they already correctly prefix-less. Passing the
+    /// prefixed form straight into an AssetLink constructor doesn't error, doesn't fail validation,
+    /// and even displays as if the path were reasonable in a plugin editor - it just silently
+    /// resolves to a doubled, nonexistent "Data\textures\textures\..." path in game, exactly the
+    /// missing-texture ("purple") failure mode this whole area has been chasing all session.
+    /// Stripped once here, unconditionally, for every field this factory ever assigns - a no-op for
+    /// a path that's already correctly prefix-less.
+    /// </summary>
+    private static AssetLink<SkyrimTextureAssetType> ToAssetLink(string? sourcePath)
+    {
+        if (string.IsNullOrEmpty(sourcePath))
+        {
+            return new AssetLink<SkyrimTextureAssetType>();
+        }
+
+        const string prefix = "textures";
+        var segments = sourcePath.Replace('/', '\\').Split('\\', StringSplitOptions.RemoveEmptyEntries).ToList();
+        if (segments.Count > 1 && segments[0].Equals(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            segments.RemoveAt(0);
+        }
+
+        return new AssetLink<SkyrimTextureAssetType>(string.Join('\\', segments));
+    }
+
+    /// <summary>Strips everything but letters/digits/underscore - see the call site's own comment
+    /// for why a raw NIF shape name can't be used as an EditorID (or filename derived from it)
+    /// as-is.</summary>
+    private static string SanitizeEditorId(string name) =>
+        new(name.Where(c => char.IsLetterOrDigit(c) || c == '_').ToArray());
 }

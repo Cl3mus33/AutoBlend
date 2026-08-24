@@ -50,6 +50,26 @@ public sealed class SettingsService
             settings.MeshBlacklist.Add(@"*\roads\*");
         }
 
+        // Dungeon/cave meshes reuse the same rock/dirt landscape textures as real terrain, with the
+        // same false-positive risk as the roads case above (reported directly). Same once-only
+        // backfill for a settings.json saved before this rule existed.
+        if (!settings.MeshBlacklist.Any(p => p.Equals(@"*\dungeons\*", StringComparison.OrdinalIgnoreCase)))
+        {
+            settings.MeshBlacklist.Add(@"*\dungeons\*");
+        }
+
+        // Same once-only backfill pattern as the mesh blacklist rules above, for a settings.json
+        // saved before these keywords were added to the defaults - weather-variant ("wet"), road,
+        // cave, and mine-tunnel records where alpha testing is intentional and should not become
+        // alpha blending.
+        foreach (var keyword in new[] { "wet", "road", "cave", "mine" })
+        {
+            if (!settings.EditorIdBlacklistKeywords.Any(k => k.Equals(keyword, StringComparison.OrdinalIgnoreCase)))
+            {
+                settings.EditorIdBlacklistKeywords.Add(keyword);
+            }
+        }
+
         return settings;
     }
 

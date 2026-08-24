@@ -65,6 +65,7 @@ private:
     void onSaveConfigAs(wxCommandEvent& event);
     void onOkButtonPressed(wxCommandEvent& event);
     void onEditAllowlistButtonPressed(wxCommandEvent& event);
+    void commitPendingListEdits();
     void updateListColumnWidths();
     void updateMo2FieldState();
     void refreshMo2Profiles(const std::wstring& preferredProfile = L"");
