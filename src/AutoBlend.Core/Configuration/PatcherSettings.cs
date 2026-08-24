@@ -51,6 +51,9 @@ public sealed class PatcherSettings
         @"*\actors\*",
         @"*\roads\*",
         @"*\dungeons\*",
+        @"*\effects\*",
+        @"*\magic\*",
+        @"*\weapons\*",
     };
 
     /// <summary>

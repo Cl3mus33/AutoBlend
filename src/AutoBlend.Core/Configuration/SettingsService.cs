@@ -58,6 +58,17 @@ public sealed class SettingsService
             settings.MeshBlacklist.Add(@"*\dungeons\*");
         }
 
+        // Effects/magic/weapons meshes never carry a landscape diffuse - reported directly from a
+        // real load order's own run log, where a large share of "mesh not found" warnings (harmless
+        // on their own) came from exactly these folders. Same once-only backfill pattern.
+        foreach (var folder in new[] { @"*\effects\*", @"*\magic\*", @"*\weapons\*" })
+        {
+            if (!settings.MeshBlacklist.Any(p => p.Equals(folder, StringComparison.OrdinalIgnoreCase)))
+            {
+                settings.MeshBlacklist.Add(folder);
+            }
+        }
+
         // Same once-only backfill pattern as the mesh blacklist rules above, for a settings.json
         // saved before these keywords were added to the defaults - weather-variant ("wet"), road,
         // cave, and mine-tunnel records where alpha testing is intentional and should not become

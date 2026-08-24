@@ -75,6 +75,11 @@ All notable changes to this project are documented here. Format loosely follows
   by default (dungeon/cave meshes and weather-variant/road/mine records reuse ordinary landscape
   textures the same way roads already did in 1.0.10, with the same false-positive risk). Existing
   installs get these backfilled automatically, once, the same way the 1.0.10 roads rule was.
+- Mesh Blacklist now also includes `*\effects\*`, `*\magic\*`, and `*\weapons\*` by default (with
+  the same once-only backfill) - these folders never carry a landscape diffuse, confirmed directly
+  from a real load order's own run log where a large share of harmless "mesh not found" warnings
+  came from exactly these three folders. Also brought the native shell's own `*\actors\*` default
+  in line with the C# side, which already had it.
 
 ### Added
 - AutoBlend now generates its own `PBRNifPatcher\...json` configs for every PBR "blend" texture it

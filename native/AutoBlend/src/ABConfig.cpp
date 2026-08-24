@@ -132,6 +132,18 @@ auto ABConfig::loadFrom(const filesystem::path& configFilePath) -> ABParams
             if (!hasDungeonsRule) {
                 params.meshBlacklist.push_back(LR"(*\dungeons\*)");
             }
+
+            // Effects/magic/weapons/actors meshes never carry a landscape diffuse - reported
+            // directly from a real load order's own run log, where a large share of "mesh not
+            // found" warnings (harmless on their own) came from exactly these four folders. Same
+            // once-only backfill pattern as the roads/dungeons rules above.
+            for (const auto* folder : { LR"(*\effects\*)", LR"(*\magic\*)", LR"(*\weapons\*)", LR"(*\actors\*)" }) {
+                const bool hasFolderRule = std::any_of(params.meshBlacklist.begin(), params.meshBlacklist.end(),
+                    [folder](const std::wstring& pattern) { return _wcsicmp(pattern.c_str(), folder) == 0; });
+                if (!hasFolderRule) {
+                    params.meshBlacklist.emplace_back(folder);
+                }
+            }
         }
         if (configJ.contains("EditorIdBlacklistKeywords")) {
             params.editorIdBlacklistKeywords.clear();
