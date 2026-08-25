@@ -26,22 +26,18 @@ public sealed record NifPatchResult(string SourcePath, IReadOnlyList<ShapePatchR
 public sealed class NiAlphaBlendPatcher
 {
     /// <summary>
-    /// Loads <paramref name="sourcePath"/>, patches every shape named in
-    /// <paramref name="derivedDiffuseByShapeName"/> (alpha test→blend, plus a diffuse slot rewrite
-    /// when the value is non-null), and writes the result to <paramref name="destPath"/> (which
-    /// may equal sourcePath for an in-place patch). Returns null if none of the named shapes were
-    /// found with a NiAlphaProperty — callers should treat that as "nothing to do" rather than an
-    /// error.
+    /// Patches every shape named in <paramref name="derivedDiffuseByShapeName"/> (alpha test→blend,
+    /// plus a diffuse slot rewrite when the value is non-null) on the already-loaded
+    /// <paramref name="nifFile"/>, and writes the result to <paramref name="destPath"/> (which may
+    /// equal sourcePath for an in-place patch). Takes an already-loaded NifFile rather than loading
+    /// sourcePath itself - the caller has always already loaded and scanned this exact file once to
+    /// even build derivedDiffuseByShapeName in the first place, so a second load-from-disk here was
+    /// a fully redundant nifly parse of every mesh needing a patch. sourcePath is kept only for
+    /// NifPatchResult's own reporting field. Returns null if none of the named shapes were found
+    /// with a NiAlphaProperty — callers should treat that as "nothing to do" rather than an error.
     /// </summary>
-    public NifPatchResult? Patch(string sourcePath, string destPath, IReadOnlyDictionary<string, string?> derivedDiffuseByShapeName)
+    public NifPatchResult? Patch(NifFile nifFile, string sourcePath, string destPath, IReadOnlyDictionary<string, string?> derivedDiffuseByShapeName)
     {
-        using var nifFile = new NifFile();
-        var loadResult = nifFile.Load(sourcePath);
-        if (loadResult != 0)
-        {
-            throw new InvalidOperationException($"nifly failed to load '{sourcePath}' (error {loadResult}).");
-        }
-
         var patched = new List<ShapePatchResult>();
 
         foreach (var shape in nifFile.GetShapes())

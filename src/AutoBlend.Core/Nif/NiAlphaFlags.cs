@@ -34,21 +34,11 @@ public static class NiAlphaFlags
     private const int SourceBlendShift = 1;
     private const int DestBlendShift = 5;
     private const int AlphaTestEnableBit = 9;
-    private const int TestFunctionShift = 10;
-    private const int NoSorterBit = 13;
 
     private const ushort FourBitMask = 0b1111;
-    private const ushort ThreeBitMask = 0b111;
 
     public static bool IsAlphaBlendEnabled(ushort flags) => GetBit(flags, AlphaBlendEnableBit);
     public static bool IsAlphaTestEnabled(ushort flags) => GetBit(flags, AlphaTestEnableBit);
-    public static bool IsNoSorterSet(ushort flags) => GetBit(flags, NoSorterBit);
-
-    public static AlphaBlendFunction GetSourceBlend(ushort flags) =>
-        (AlphaBlendFunction)((flags >> SourceBlendShift) & FourBitMask);
-
-    public static AlphaBlendFunction GetDestBlend(ushort flags) =>
-        (AlphaBlendFunction)((flags >> DestBlendShift) & FourBitMask);
 
     /// <summary>
     /// Returns flags with alpha testing disabled and alpha blending enabled using the standard

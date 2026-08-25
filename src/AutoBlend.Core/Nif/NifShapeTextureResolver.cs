@@ -20,8 +20,6 @@ public static class NifShapeTextureResolver
     private const uint MultilayerSlot = 6;
     private const uint BacklightMaskOrSpecularSlot = 7;
 
-    public static string? GetDiffusePath(NifFile nifFile, NiShape shape) => GetSlot(nifFile, shape, DiffuseSlot);
-
     /// <summary>
     /// Reads all 8 embedded texture slots for a shape. Used when a shape has no ESP-level
     /// Alternate Texture override to derive from instead.

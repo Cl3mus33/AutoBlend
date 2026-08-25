@@ -99,12 +99,15 @@ public sealed class PatcherSettings
     /// like "textures\mymod\landscape\*") for any other texture pack's own base landscape textures.
     /// </summary>
     /// <summary>
-    /// When true, a derived TextureSet also carries forward the winning source TextureSet's own
-    /// Height and EnvironmentMaskOrSubsurfaceTint (RMAOS) slots, not just Diffuse/Normal - so if a
-    /// PBR texture pack is what's actually winning in the load order for a given texture, the
-    /// derived "statics" TextureSet inherits its PBR slots too, instead of leaving them empty for a
-    /// downstream tool to fill in. False (default) keeps the original vanilla-friendly behavior:
-    /// only Diffuse and Normal/Gloss are ever set.
+    /// When true, AutoBlend also actively looks for and generates a PBR sibling (Height/RMAOS,
+    /// following Skyrim's "_p"/"_rmaos" suffix convention) for a landscape texture that doesn't
+    /// already have complex-material data of its own. A derived TextureSet's Height/RMAOS slots
+    /// always carry forward whatever the winning source TextureSet already had there, regardless
+    /// of this setting - vanilla Skyrim's own complex-material textures (e.g. "Landscape\Dirt02.dds",
+    /// which ships its own "_p.dds"/"_m.dds") already populate these slots, and dropping that data
+    /// on every derived TextureSet whenever this was off produced real "purple"/broken-texture
+    /// reports, not just for PBR-off users specifically. False (default) only affects whether NEW
+    /// PBR files get generated for textures that don't already have Height/RMAOS data.
     /// </summary>
     public bool GeneratePbrSlots { get; set; }
 

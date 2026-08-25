@@ -5,6 +5,41 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.14] - 2026-08-24
+
+### Changed
+- **Generation runs noticeably faster on large modlists.** Mesh processing (extraction, nifly
+  parse/patch/save, per-record classification) now runs across every available CPU core instead of
+  one mesh at a time - the dominant per-run cost on a modlist with thousands of candidate meshes.
+  Only the actual ESP-mutation step (creating TextureSet records, assigning Alternate Textures)
+  stays serialized, since that touches shared plugin state that can't safely be written from
+  multiple threads at once - everything else (which is most of the work) is fully parallel.
+  Verified against a real ~200-mod modlist: two full runs of the same modlist produced byte-for-byte
+  identical output counts, confirming the parallel version isn't racy.
+- Every mesh needing a patch was being parsed by nifly **twice** - once to scan its shapes during
+  detection, then a second time from scratch inside the actual patching step, discarding the first
+  parse entirely. The already-loaded file is now reused for both steps, roughly halving the nifly
+  parsing cost of the whole run.
+- MO2 file resolution (used for every mesh/texture lookup across a run, and every landscape
+  texture's up-to-3-candidate-path probe) previously re-walked every enabled mod folder on every
+  query with no way to short-circuit "not found anywhere" - the single most common outcome, since
+  most landscape textures have no statics/blending/blend sibling at all. Both positive and negative
+  results are now cached per path, turning every repeat query into an instant lookup.
+
+### Fixed
+- A derived TextureSet's Height/RMAOS slots always carry forward whatever the winning source
+  TextureSet already had there (vanilla complex-material data included), regardless of the
+  "Generate PBR Slots" setting - correct, deliberate behavior from an earlier fix, but the
+  setting's own description still claimed the old ("only Diffuse/Normal ever set") behavior.
+  Updated to describe what the setting actually controls: whether NEW PBR files get generated for
+  textures that don't already have Height/RMAOS data, not whether existing data gets dropped.
+
+### Removed
+- A handful of methods with zero call sites anywhere in the codebase (confirmed by exhaustive
+  search, not left in "just in case"): `NifShapeTextureResolver.GetDiffusePath` (superseded by
+  `GetAllSlots`), `WildcardMatcher.IsMatch` (only `MatchesAny` is ever used), and three unused
+  `NiAlphaFlags` bit-accessors (`GetSourceBlend`/`GetDestBlend`/`IsNoSorterSet`).
+
 ## [1.0.13] - 2026-08-24
 
 ### Fixed

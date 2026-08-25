@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using AutoBlend.Core.Configuration;
 using AutoBlend.Core.Nif;
 using AutoBlend.Core.Plugin;
@@ -251,13 +253,38 @@ public sealed class PatchOrchestrator
         var meshesDuplicated = 0;
         var altTexAssigned = 0;
 
+        // Two locks, not one: warningsLock guards only the (rare, error-path-only) shared warnings
+        // list, while espLock guards the ESP-mutation tail below (patchMod/derivedTxstCache/
+        // altTexAssigned - Mutagen mod objects are not safe for concurrent mutation). Keeping them
+        // separate means a warning raised during the genuinely parallel scan/classify/patch work
+        // never has to wait behind whatever mesh currently holds the ESP lock.
+        var warningsLock = new object();
+        var espLock = new object();
+        void AddWarning(string message)
+        {
+            lock (warningsLock)
+            {
+                warnings.Add(message);
+            }
+        }
+
         try
         {
             var totalMeshes = candidatesByMesh.Count;
             var meshCounter = 0;
-            foreach (var (meshPath, candidateFormKeys) in candidatesByMesh)
+
+            // Per-mesh work - extraction, nifly parse, classification, alpha-flip patch+save - has
+            // no shared mutable state (each mesh gets its own temp file, own NifFile, own local
+            // dictionaries) except for the handful of things now explicitly locked above/below, so
+            // it runs across every available core instead of one mesh at a time. This was the
+            // dominant cost of a real run (disk extraction + nifly parse + nifly save, per mesh,
+            // over thousands of meshes) sitting entirely on one thread while the rest of the
+            // machine's cores were idle - reported directly as generation feeling "a bit slow" on
+            // large modlists.
+            Parallel.ForEach(candidatesByMesh, kvp =>
             {
-                meshCounter++;
+                var (meshPath, candidateFormKeys) = kvp;
+                var currentCount = Interlocked.Increment(ref meshCounter);
                 try
                 {
                 // Texture generation happens lazily inside folderDetector.Detect() below, as part
@@ -268,12 +295,12 @@ public sealed class PatchOrchestrator
                 var textureGenSuffix = textureGenerator is not null
                     ? $" - {textureGenerator.GeneratedCount} texture(s) generated"
                     : string.Empty;
-                Report($"Patching meshes... ({meshCounter}/{totalMeshes}){textureGenSuffix}", meshCounter, totalMeshes);
+                Report($"Patching meshes... ({currentCount}/{totalMeshes}){textureGenSuffix}", currentCount, totalMeshes);
 
                 var plan = meshIndex.GetPlan(meshPath);
                 if (!plan.ShouldPatch)
                 {
-                    continue;
+                    return;
                 }
 
                 var meshRelativeToData = Path.Combine("meshes", meshPath);
@@ -284,8 +311,8 @@ public sealed class PatchOrchestrator
                 }
                 catch (FileNotFoundException)
                 {
-                    warnings.Add($"Mesh not found, skipped: {meshPath}");
-                    continue;
+                    AddWarning($"Mesh not found, skipped: {meshPath}");
+                    return;
                 }
 
                 // Every shape with NiAlphaProperty, regardless of whether the mesh's OWN embedded
@@ -293,46 +320,50 @@ public sealed class PatchOrchestrator
                 // in scope for a specific record via that record's own Alternate Texture (see
                 // ClassifyRecord below), so filtering here would silently drop those records before
                 // their AltTex is ever even looked at.
+                // Kept alive (not disposed) for the rest of this mesh's own try block, down through
+                // the NiAlphaBlendPatcher.Patch(...) call below - that used to open and parse this
+                // exact same file a second time from scratch via its own sourcePath argument, a full
+                // duplicate binary nifly parse of every mesh that needs patching for no data reuse.
+                // Passing the already-loaded NifFile through directly halves the nifly parse cost of
+                // this whole loop.
                 var alphaShapes = new Dictionary<string, AlphaShape>(StringComparer.OrdinalIgnoreCase);
-                using (var readNif = new NifFile())
+                using var readNif = new NifFile();
+                if (readNif.Load(extractedPath) != 0)
                 {
-                    if (readNif.Load(extractedPath) != 0)
+                    AddWarning($"nifly failed to load, skipped: {meshPath}");
+                    return;
+                }
+
+                var allShapes = readNif.GetShapes();
+                for (var shapeIndex = 0; shapeIndex < allShapes.Count; shapeIndex++)
+                {
+                    var shape = allShapes[shapeIndex];
+                    if (!shape.HasAlphaProperty())
                     {
-                        warnings.Add($"nifly failed to load, skipped: {meshPath}");
                         continue;
                     }
 
-                    var allShapes = readNif.GetShapes();
-                    for (var shapeIndex = 0; shapeIndex < allShapes.Count; shapeIndex++)
+                    var slots = NifShapeTextureResolver.GetAllSlots(readNif, shape);
+                    if (string.IsNullOrEmpty(slots.Diffuse))
                     {
-                        var shape = allShapes[shapeIndex];
-                        if (!shape.HasAlphaProperty())
-                        {
-                            continue;
-                        }
-
-                        var slots = NifShapeTextureResolver.GetAllSlots(readNif, shape);
-                        if (string.IsNullOrEmpty(slots.Diffuse))
-                        {
-                            continue;
-                        }
-
-                        var alreadyAlphaBlended = false;
-                        var alphaProperty = readNif.GetAlphaProperty(shape);
-                        if (alphaProperty is not null)
-                        {
-                            alreadyAlphaBlended = NiAlphaFlags.IsAlphaBlendEnabled(alphaProperty.flags)
-                                && !NiAlphaFlags.IsAlphaTestEnabled(alphaProperty.flags);
-                        }
-
-                        var detection = folderDetector.Detect(slots.Diffuse);
-                        alphaShapes[shape.name.get()] = new AlphaShape(shapeIndex, slots.Diffuse, detection, slots, alreadyAlphaBlended);
+                        continue;
                     }
+
+                    var alreadyAlphaBlended = false;
+                    var alphaProperty = readNif.GetAlphaProperty(shape);
+                    if (alphaProperty is not null)
+                    {
+                        alreadyAlphaBlended = NiAlphaFlags.IsAlphaBlendEnabled(alphaProperty.flags)
+                            && !NiAlphaFlags.IsAlphaTestEnabled(alphaProperty.flags);
+                    }
+
+                    var detection = folderDetector.Detect(slots.Diffuse);
+                    alphaShapes[shape.name.get()] = new AlphaShape(shapeIndex, slots.Diffuse, detection, slots, alreadyAlphaBlended);
                 }
 
                 if (alphaShapes.Count == 0)
                 {
-                    continue;
+                    return;
                 }
 
                 // Classify every candidate record's per-shape treatment: does IT (via its own
@@ -345,7 +376,7 @@ public sealed class PatchOrchestrator
                 var perRecordTreatment = new Dictionary<FormKey, Dictionary<string, ShapeTreatment>>();
                 foreach (var formKey in candidateFormKeys)
                 {
-                    perRecordTreatment[formKey] = ClassifyRecord(formKey, recordKinds[formKey], alphaShapes, env, folderDetector, warnings);
+                    perRecordTreatment[formKey] = ClassifyRecord(formKey, recordKinds[formKey], alphaShapes, env, folderDetector, AddWarning);
                 }
 
                 // Every shape treatment (BaseDerived - the mesh's own embedded default resolves - or
@@ -372,7 +403,7 @@ public sealed class PatchOrchestrator
 
                 if (shapesNeedingAlphaFlip.Count == 0)
                 {
-                    continue;
+                    return;
                 }
 
                 // For every in-scope shape whose OWN embedded default resolves, ALSO rewrite its raw
@@ -416,16 +447,16 @@ public sealed class PatchOrchestrator
                 }
 
                 var patcher = new NiAlphaBlendPatcher();
-                var patchResult = patcher.Patch(extractedPath, outputMeshPath, alphaConversionByShapeName);
+                var patchResult = patcher.Patch(readNif, extractedPath, outputMeshPath, alphaConversionByShapeName);
                 if (patchResult is not null)
                 {
                     if (duplicateRelPath is not null)
                     {
-                        meshesDuplicated++;
+                        Interlocked.Increment(ref meshesDuplicated);
                     }
                     else
                     {
-                        meshesPatchedInPlace++;
+                        Interlocked.Increment(ref meshesPatchedInPlace);
                     }
                 }
 
@@ -435,6 +466,13 @@ public sealed class PatchOrchestrator
                 // sharing this same mesh keeps pointing at the untouched original.
                 var recordsToAssign = plan.PatchInPlace ? (IEnumerable<FormKey>)perRecordTreatment.Keys : plan.DuplicateForRecords;
 
+                // Everything from here down touches patchMod/derivedTxstCache/altTexAssigned - real,
+                // shared Mutagen mod state that isn't safe for concurrent mutation - so it's the one
+                // part of this mesh's own work that stays serialized behind a lock. It's also the
+                // cheapest part (in-memory record creation, no disk I/O, no nifly parsing), so
+                // holding this lock costs far less than the parallelism above gains.
+                lock (espLock)
+                {
                 foreach (var formKey in recordsToAssign)
                 {
                     if (!perRecordTreatment.TryGetValue(formKey, out var treatment))
@@ -445,7 +483,7 @@ public sealed class PatchOrchestrator
                     Model? model = null;
                     if (duplicateRelPath is not null)
                     {
-                        model = GetOrCreateOverrideModel(formKey, recordKinds[formKey], patchMod, env, warnings);
+                        model = GetOrCreateOverrideModel(formKey, recordKinds[formKey], patchMod, env, AddWarning);
                         if (model is null)
                         {
                             continue;
@@ -462,7 +500,7 @@ public sealed class PatchOrchestrator
                         continue;
                     }
 
-                    model ??= GetOrCreateOverrideModel(formKey, recordKinds[formKey], patchMod, env, warnings);
+                    model ??= GetOrCreateOverrideModel(formKey, recordKinds[formKey], patchMod, env, AddWarning);
                     if (model is null)
                     {
                         continue;
@@ -510,7 +548,7 @@ public sealed class PatchOrchestrator
                                 // would have used it) keeps one bad mod from aborting the whole
                                 // run for every other record - matches the existing "left
                                 // untouched"/"skipped" resilience pattern used elsewhere here.
-                                warnings.Add($"Could not create derived TextureSet for '{t.Source!.SourceName}' "
+                                AddWarning($"Could not create derived TextureSet for '{t.Source!.SourceName}' "
                                     + $"({t.Detection!.Rule.FolderName}): {ex.Message} - left untouched.");
                                 derivedTxst = null;
                             }
@@ -537,6 +575,7 @@ public sealed class PatchOrchestrator
                         altTexAssigned++;
                     }
                 }
+                } // end lock (espLock)
                 }
                 catch (Exception ex)
                 {
@@ -549,9 +588,9 @@ public sealed class PatchOrchestrator
                     // path); this is the backstop for whatever isn't one of those yet - matches the
                     // same "left untouched"/"skipped" resilience pattern, just at mesh granularity
                     // instead of per-record.
-                    warnings.Add($"Unexpected error processing '{meshPath}', skipped: {ex.Message}");
+                    AddWarning($"Unexpected error processing '{meshPath}', skipped: {ex.Message}");
                 }
-            }
+            });
         }
         finally
         {
@@ -624,7 +663,7 @@ public sealed class PatchOrchestrator
         Dictionary<string, AlphaShape> alphaShapes,
         IGameEnvironment env,
         LandscapeFolderDetector folderDetector,
-        List<string> warnings)
+        Action<string> addWarning)
     {
         var result = new Dictionary<string, ShapeTreatment>(StringComparer.OrdinalIgnoreCase);
 
@@ -658,7 +697,7 @@ public sealed class PatchOrchestrator
                     // The Alternate Texture points at a FormKey that doesn't resolve in this
                     // environment (missing/masked plugin) - there is nothing correct to derive, so
                     // leave it untouched rather than guessing from the mesh's unrelated default.
-                    warnings.Add($"Could not resolve existing TextureSet referenced by shape '{shapeName}' on record {formKey} - left untouched.");
+                    addWarning($"Could not resolve existing TextureSet referenced by shape '{shapeName}' on record {formKey} - left untouched.");
                     result[shapeName] = new ShapeTreatment(ShapeTreatmentKind.Untouched, alphaShape.ShapeIndex, null, null);
                 }
             }
@@ -695,13 +734,13 @@ public sealed class PatchOrchestrator
         return result;
     }
 
-    private static Model? GetOrCreateOverrideModel(FormKey recordFormKey, RecordKind kind, SkyrimMod patchMod, IGameEnvironment env, List<string> warnings)
+    private static Model? GetOrCreateOverrideModel(FormKey recordFormKey, RecordKind kind, SkyrimMod patchMod, IGameEnvironment env, Action<string> addWarning)
     {
         if (kind == RecordKind.Static)
         {
             if (!env.LinkCache.TryResolve<IStaticGetter>(recordFormKey, out var winning))
             {
-                warnings.Add($"Could not resolve Static record {recordFormKey}, skipped.");
+                addWarning($"Could not resolve Static record {recordFormKey}, skipped.");
                 return null;
             }
 
@@ -710,7 +749,7 @@ public sealed class PatchOrchestrator
 
         if (!env.LinkCache.TryResolve<IMoveableStaticGetter>(recordFormKey, out var winningMstt))
         {
-            warnings.Add($"Could not resolve MoveableStatic record {recordFormKey}, skipped.");
+            addWarning($"Could not resolve MoveableStatic record {recordFormKey}, skipped.");
             return null;
         }
 

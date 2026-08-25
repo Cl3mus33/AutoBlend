@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Archives;
 
@@ -33,8 +34,26 @@ public sealed class Mo2InstanceReader : IDisposable
     public IReadOnlyList<string> EnabledModFoldersHighToLowPriority { get; }
 
     private readonly GameRelease _gameRelease;
+
+    // A single Mo2InstanceReader instance is shared across every mesh-processing thread once the
+    // main per-mesh loop runs in parallel (see PatchOrchestrator) - every mutable field below is
+    // read/written from that hot path, so plain Dictionary/List here would be a real (silent, wrong-
+    // output-not-crash) data race, not just a style nit.
+    private readonly object _archiveReadersLock = new();
     private IReadOnlyList<IArchiveReader>? _modArchiveReaders;
-    private readonly Dictionary<IArchiveReader, Dictionary<string, IArchiveFile>> _archiveIndexes = new();
+    private readonly ConcurrentDictionary<IArchiveReader, Dictionary<string, IArchiveFile>> _archiveIndexes = new();
+
+    // TryResolve is a pure function of relativeDataPath given a fixed EnabledModFoldersHighToLowPriority
+    // (never mutated after construction) - but it was re-walking every enabled mod folder's own
+    // File.Exists on every call, with no way to short-circuit the "not found anywhere" case, which
+    // is exactly the case every landscape texture WITHOUT a statics/blending/blend sibling hits.
+    // On a real modlist (hundreds of enabled mods) this meant hundreds of File.Exists syscalls
+    // repeated for every distinct texture path queried more than once across a run - both this
+    // reader's own TryResolveLooseOrArchived/ExistsLooseOrArchived (called for every mesh/texture
+    // lookup the whole run does) and LandscapeFolderDetector's candidate-path probing. Caching
+    // both positive and negative results per relative path (case-insensitive, matching every other
+    // path lookup in this codebase) turns every repeat query into a dictionary hit.
+    private readonly ConcurrentDictionary<string, string?> _resolveCache = new(StringComparer.OrdinalIgnoreCase);
 
     public Mo2InstanceReader(string instancePath, string profileName, GameRelease gameRelease)
     {
@@ -100,13 +119,25 @@ public sealed class Mo2InstanceReader : IDisposable
     /// <see cref="TryResolveLooseOrArchived"/> instead.</summary>
     public bool TryResolve(string relativeDataPath, out string fullPath)
     {
+        if (_resolveCache.TryGetValue(relativeDataPath, out var cached))
+        {
+            fullPath = cached ?? string.Empty;
+            return cached is not null;
+        }
+
+        fullPath = ResolveUncached(relativeDataPath);
+        _resolveCache[relativeDataPath] = fullPath.Length == 0 ? null : fullPath;
+        return fullPath.Length > 0;
+    }
+
+    private string ResolveUncached(string relativeDataPath)
+    {
         if (OverwriteFolder is not null)
         {
             var overwritePath = Path.Combine(OverwriteFolder, relativeDataPath);
             if (File.Exists(overwritePath))
             {
-                fullPath = overwritePath;
-                return true;
+                return overwritePath;
             }
         }
 
@@ -115,13 +146,11 @@ public sealed class Mo2InstanceReader : IDisposable
             var candidate = Path.Combine(modFolder, relativeDataPath);
             if (File.Exists(candidate))
             {
-                fullPath = candidate;
-                return true;
+                return candidate;
             }
         }
 
-        fullPath = string.Empty;
-        return false;
+        return string.Empty;
     }
 
     /// <summary>Same loose-file resolution as <see cref="TryResolve"/>, then - only if no mod
@@ -226,45 +255,56 @@ public sealed class Mo2InstanceReader : IDisposable
             return _modArchiveReaders;
         }
 
-        var readers = new List<IArchiveReader>();
-        foreach (var modFolder in EnabledModFoldersHighToLowPriority)
+        // A real double-checked lock, not just a "read the field twice" convenience - a race here
+        // wouldn't just redo the work, it would leak IArchiveReader instances (each one wraps an
+        // open file handle) since Dispose() only ever disposes whichever list ends up in the field.
+        lock (_archiveReadersLock)
         {
-            IEnumerable<string> archivePaths;
-            try
+            if (_modArchiveReaders is not null)
             {
-                archivePaths = Directory.EnumerateFiles(modFolder, "*.bsa")
-                    .Concat(Directory.EnumerateFiles(modFolder, "*.ba2"));
-            }
-            catch (IOException)
-            {
-                continue;
+                return _modArchiveReaders;
             }
 
-            foreach (var archivePath in archivePaths)
+            var readers = new List<IArchiveReader>();
+            foreach (var modFolder in EnabledModFoldersHighToLowPriority)
             {
+                IEnumerable<string> archivePaths;
                 try
                 {
-                    readers.Add(Archive.CreateReader(_gameRelease, archivePath));
+                    archivePaths = Directory.EnumerateFiles(modFolder, "*.bsa")
+                        .Concat(Directory.EnumerateFiles(modFolder, "*.ba2"));
                 }
-                catch
+                catch (IOException)
                 {
-                    // Skip archives Mutagen can't parse (corrupt/unsupported format) rather than
-                    // failing the whole run over one bad file.
+                    continue;
+                }
+
+                foreach (var archivePath in archivePaths)
+                {
+                    try
+                    {
+                        readers.Add(Archive.CreateReader(_gameRelease, archivePath));
+                    }
+                    catch
+                    {
+                        // Skip archives Mutagen can't parse (corrupt/unsupported format) rather than
+                        // failing the whole run over one bad file.
+                    }
                 }
             }
-        }
 
-        _modArchiveReaders = readers;
-        return readers;
+            _modArchiveReaders = readers;
+            return readers;
+        }
     }
 
     private Dictionary<string, IArchiveFile> GetOrBuildArchiveIndex(IArchiveReader reader)
     {
-        if (_archiveIndexes.TryGetValue(reader, out var existing))
-        {
-            return existing;
-        }
+        return _archiveIndexes.GetOrAdd(reader, BuildArchiveIndex);
+    }
 
+    private static Dictionary<string, IArchiveFile> BuildArchiveIndex(IArchiveReader reader)
+    {
         // Case-insensitive: real-world archives frequently mix casing between what a plugin's own
         // Model.File path uses and what got packed into the archive - see ArchiveAwareFileProbe's
         // own identical indexing for the same fix applied to the vanilla game's own BSAs.
@@ -274,7 +314,6 @@ public sealed class Mo2InstanceReader : IDisposable
             index.TryAdd(archiveFile.Path, archiveFile);
         }
 
-        _archiveIndexes[reader] = index;
         return index;
     }
 

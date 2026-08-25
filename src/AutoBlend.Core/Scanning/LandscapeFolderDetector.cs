@@ -81,6 +81,19 @@ public sealed class LandscapeFolderDetector
     // path conventions for the same texture, never a wrong result.
     private readonly Dictionary<string, LandscapeFolderDetection?> _detectCache = new(StringComparer.OrdinalIgnoreCase);
 
+    // A single detector instance is shared across every mesh-processing thread once the main
+    // per-mesh loop runs in parallel (see PatchOrchestrator) - Detect() is called directly from
+    // that hot path. _detectCache is a plain Dictionary (a torn read/write here is a real, silent
+    // data race, not just a style nit), and DetectCore can reach all the way into
+    // MissingTextureGenerator's own mutable state (counters, json-building collections, and actual
+    // file writes via its native P/Invoke call) - none of which is safe for concurrent access on
+    // its own. One lock around the whole call is deliberately coarse rather than trying to make
+    // every one of those pieces independently thread-safe: the cache means the overwhelming
+    // majority of calls after a texture's own first sighting are a near-instant dictionary hit
+    // under this lock, so it doesn't meaningfully bottleneck the actually expensive, genuinely
+    // parallel work (nifly parsing/patching) happening outside it.
+    private readonly object _detectLock = new();
+
     /// <param name="textureGenerator">
     /// When set, a texture with no existing statics sibling - AND matching
     /// <paramref name="autoGenerateAllowlist"/> - gets one synthesized on the fly (see
@@ -138,14 +151,17 @@ public sealed class LandscapeFolderDetector
     /// </param>
     public LandscapeFolderDetection? Detect(string diffusePath)
     {
-        if (_detectCache.TryGetValue(diffusePath, out var cached))
+        lock (_detectLock)
         {
-            return cached;
-        }
+            if (_detectCache.TryGetValue(diffusePath, out var cached))
+            {
+                return cached;
+            }
 
-        var result = DetectCore(diffusePath);
-        _detectCache[diffusePath] = result;
-        return result;
+            var result = DetectCore(diffusePath);
+            _detectCache[diffusePath] = result;
+            return result;
+        }
     }
 
     private LandscapeFolderDetection? DetectCore(string diffusePath)

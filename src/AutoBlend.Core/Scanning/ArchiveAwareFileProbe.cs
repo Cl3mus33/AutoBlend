@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using AutoBlend.Core.Configuration;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Archives;
@@ -25,8 +26,11 @@ public sealed class ArchiveAwareFileProbe : IGameFileProbe
     // this probe was concerned - on one real modlist this was 91% of every "mesh not found"
     // warning. Indexing every archive's full file list once (case-insensitively, lazily on first
     // use) avoids the folder-lookup step's case sensitivity entirely; built once per reader rather
-    // than per query since IArchiveReader.Files enumerates the whole archive.
-    private readonly Dictionary<IArchiveReader, Dictionary<string, IArchiveFile>> _archiveIndexes = new();
+    // than per query since IArchiveReader.Files enumerates the whole archive. ConcurrentDictionary
+    // since this probe is shared across every mesh-processing thread once the main per-mesh loop
+    // runs in parallel (see PatchOrchestrator) - Exists/OpenRead are called directly from that hot
+    // path, not behind any other synchronization.
+    private readonly ConcurrentDictionary<IArchiveReader, Dictionary<string, IArchiveFile>> _archiveIndexes = new();
 
     public ArchiveAwareFileProbe(string dataRoot, GameType gameType)
     {
@@ -90,13 +94,11 @@ public sealed class ArchiveAwareFileProbe : IGameFileProbe
         return false;
     }
 
-    private Dictionary<string, IArchiveFile> GetOrBuildIndex(IArchiveReader reader)
-    {
-        if (_archiveIndexes.TryGetValue(reader, out var existing))
-        {
-            return existing;
-        }
+    private Dictionary<string, IArchiveFile> GetOrBuildIndex(IArchiveReader reader) =>
+        _archiveIndexes.GetOrAdd(reader, BuildIndex);
 
+    private static Dictionary<string, IArchiveFile> BuildIndex(IArchiveReader reader)
+    {
         var index = new Dictionary<string, IArchiveFile>(StringComparer.OrdinalIgnoreCase);
         foreach (var archiveFile in reader.Files)
         {
@@ -105,7 +107,6 @@ public sealed class ArchiveAwareFileProbe : IGameFileProbe
             index.TryAdd(archiveFile.Path, archiveFile);
         }
 
-        _archiveIndexes[reader] = index;
         return index;
     }
 
