@@ -170,7 +170,20 @@ public sealed class PatchOrchestrator
             for (var i = 0; i < effectiveAllowlist.Count; i++)
             {
                 Report($"Generating missing statics textures... ({i + 1}/{effectiveAllowlist.Count})", i + 1, effectiveAllowlist.Count);
-                folderDetector.Detect(effectiveAllowlist[i]);
+                try
+                {
+                    folderDetector.Detect(effectiveAllowlist[i]);
+                }
+                catch (Exception ex)
+                {
+                    // One allowlist entry's own detection must not abort every other entry (and the
+                    // whole run) - matches the same resilience pattern used everywhere else here.
+                    // Reported directly: an unrelated corrupt archive elsewhere in the real Data
+                    // folder reliably crashed generation the very first time any Detect() call
+                    // needed to check it, before this loop (or the file probes it calls into) had
+                    // any protection against a single bad archive.
+                    warnings.Add($"Could not check '{effectiveAllowlist[i]}' for a missing statics texture, skipped: {ex.Message}");
+                }
             }
         }
 

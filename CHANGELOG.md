@@ -5,6 +5,23 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.16] - 2026-08-25
+
+### Fixed
+- **Fixed a hard crash ("Strings section was not able to be read - Did not end all of its strings
+  in null bytes", from deep inside Mutagen's own BSA filename-table parser) that reliably aborted
+  generation on its very first run for any load order with a corrupt or malformed archive anywhere
+  in the real Data folder** - reported directly: a user could never get a single successful run
+  from the very first version to the latest, always failing during "Generating missing statics
+  textures...". Root cause: reading an archive's own internal file list (to check whether a texture
+  exists in it) had no protection against a specific archive's own list being malformed - one bad
+  archive crashed the whole run instead of just being unusable itself. Every archive
+  read/open/enumerate path in both file probes (the real Data folder's own archives, and every
+  enabled mod's own archives) now treats a bad archive as "has nothing to offer" rather than
+  propagating the failure, and the one call site that had no exception handling at all (the
+  upfront missing-texture generation pass) now has the same per-entry resilience used everywhere
+  else in this codebase.
+
 ## [1.0.15] - 2026-08-24
 
 ### Fixed

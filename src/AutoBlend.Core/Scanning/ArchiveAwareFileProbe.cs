@@ -39,10 +39,21 @@ public sealed class ArchiveAwareFileProbe : IGameFileProbe
         var release = ToGameRelease(gameType);
         var archivePaths = GetApplicableArchivePathsSafe(release, dataRoot);
 
+        // Matches Mo2InstanceReader's own identical try/catch around CreateReader - a corrupt or
+        // unsupported-format archive can throw here too, not just later while reading its contents
+        // (see BuildIndex below), and one bad archive in the real Data folder must not abort the
+        // whole run.
         var readers = new List<IArchiveReader>();
         foreach (var archivePath in archivePaths)
         {
-            readers.Add(Archive.CreateReader(release, archivePath));
+            try
+            {
+                readers.Add(Archive.CreateReader(release, archivePath));
+            }
+            catch (Exception)
+            {
+                // Skip archives Mutagen can't parse (corrupt/unsupported format).
+            }
         }
         _archiveReaders = readers;
     }
@@ -97,14 +108,29 @@ public sealed class ArchiveAwareFileProbe : IGameFileProbe
     private Dictionary<string, IArchiveFile> GetOrBuildIndex(IArchiveReader reader) =>
         _archiveIndexes.GetOrAdd(reader, BuildIndex);
 
+    // A malformed/corrupt archive's own internal filename table can throw while being enumerated
+    // here (reported directly: "Strings section was not able to be read - Did not end all of its
+    // strings in null bytes", from deep inside Mutagen's own BSA filename-block parser) - a real,
+    // specific archive on that user's own real Data folder, not something AutoBlend's own code
+    // produced. One bad archive must not abort the whole run for every other texture/mesh lookup:
+    // treated as "this archive has nothing to offer" (empty index) rather than propagating, matching
+    // the same "one bad file/mod must not abort the whole run" resilience used everywhere else here.
     private static Dictionary<string, IArchiveFile> BuildIndex(IArchiveReader reader)
     {
         var index = new Dictionary<string, IArchiveFile>(StringComparer.OrdinalIgnoreCase);
-        foreach (var archiveFile in reader.Files)
+        try
         {
-            // A handful of archives ship the same path under two different cases as distinct
-            // entries - first one wins, matching how the game itself only ever sees one at a time.
-            index.TryAdd(archiveFile.Path, archiveFile);
+            foreach (var archiveFile in reader.Files)
+            {
+                // A handful of archives ship the same path under two different cases as distinct
+                // entries - first one wins, matching how the game itself only ever sees one at a time.
+                index.TryAdd(archiveFile.Path, archiveFile);
+            }
+        }
+        catch (Exception)
+        {
+            // Whatever this archive already indexed before hitting the bad part stays usable -
+            // better than discarding it entirely - but nothing more from it will ever be found.
         }
 
         return index;

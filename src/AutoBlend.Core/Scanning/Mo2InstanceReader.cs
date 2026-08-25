@@ -303,15 +303,27 @@ public sealed class Mo2InstanceReader : IDisposable
         return _archiveIndexes.GetOrAdd(reader, BuildArchiveIndex);
     }
 
+    // A malformed/corrupt archive's own internal filename table can throw while being enumerated
+    // here (reported directly: "Strings section was not able to be read - Did not end all of its
+    // strings in null bytes", from deep inside Mutagen's own BSA filename-block parser) - see
+    // ArchiveAwareFileProbe's own identical fix for the vanilla Data folder's own BSAs. One bad
+    // mod-provided archive must not abort the whole run for every other mod's own files.
     private static Dictionary<string, IArchiveFile> BuildArchiveIndex(IArchiveReader reader)
     {
         // Case-insensitive: real-world archives frequently mix casing between what a plugin's own
         // Model.File path uses and what got packed into the archive - see ArchiveAwareFileProbe's
         // own identical indexing for the same fix applied to the vanilla game's own BSAs.
         var index = new Dictionary<string, IArchiveFile>(StringComparer.OrdinalIgnoreCase);
-        foreach (var archiveFile in reader.Files)
+        try
         {
-            index.TryAdd(archiveFile.Path, archiveFile);
+            foreach (var archiveFile in reader.Files)
+            {
+                index.TryAdd(archiveFile.Path, archiveFile);
+            }
+        }
+        catch (Exception)
+        {
+            // Whatever this archive already indexed before hitting the bad part stays usable.
         }
 
         return index;
