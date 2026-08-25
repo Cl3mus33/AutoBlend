@@ -5,6 +5,17 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.15] - 2026-08-24
+
+### Fixed
+- Fixed the generated plugin's own master list being written in plain alphabetical order
+  (Dawnguard.esm, Dragonborn.esm, HearthFires.esm, Skyrim.esm, Update.esm, _ResourcePack.esl)
+  instead of load order - reported directly via xEdit's own background loader warning: "Modules
+  with extended FormID range should always have the Game Master as their first master", tripped by
+  Skyrim.esm sitting fourth instead of first on this ESL-flagged plugin. Confirmed and fixed using
+  Mutagen's own documented mechanism for this (WithMastersListOrdering, sorted by the real load
+  order) - Skyrim.esm now always writes first, matching every real load order.
+
 ## [1.0.14] - 2026-08-24
 
 ### Changed

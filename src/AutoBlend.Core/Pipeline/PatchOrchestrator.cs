@@ -639,7 +639,19 @@ public sealed class PatchOrchestrator
                     + "regular (non-ESL) ESP instead.");
             }
 
-            patchMod.BeginWrite.ToPath(outputEspPath).WithNoLoadOrder().Write();
+            // Without this, Mutagen's own default master-list ordering is plain alphabetical
+            // (Dawnguard.esm, Dragonborn.esm, HearthFires.esm, Skyrim.esm, Update.esm,
+            // _ResourcePack.esl) - reported directly via xEdit's own background loader warning:
+            // "Modules with extended FormID range should always have the Game Master as their
+            // first master", tripped by exactly that alphabetical order putting Skyrim.esm fourth
+            // instead of first on this ESL-flagged plugin. Sorting by the real load order instead
+            // (Mutagen's own recommended fix for this - confirmed directly in its own source,
+            // BinaryWriteBuilder.WithMastersListOrdering's doc comment) puts Skyrim.esm first like
+            // it always is in any real load order, without changing WithNoLoadOrder's own behavior
+            // otherwise (still writing this mod standalone, not validating against real files).
+            patchMod.BeginWrite.ToPath(outputEspPath).WithNoLoadOrder()
+                .WithMastersListOrdering(env.LoadOrder.ListedOrder.Select(l => l.ModKey))
+                .Write();
         }
 
         return new PatchRunResult(
