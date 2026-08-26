@@ -5,6 +5,25 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.18] - 2026-08-26
+
+### Fixed
+- **Fixed generation including records from DISABLED plugins when not using MO2** (Vortex, or no
+  mod manager at all) - reported directly: a plugin the user had explicitly disabled (its own mod's
+  own installation instructions even said to disable it, keeping only its assets) still ended up as
+  a master of AutoBlend's own output, breaking PG Patcher (which correctly only considers the real
+  active load order) even though AutoBlend itself reported success. Root cause, confirmed directly
+  against Mutagen's own source: without an explicit load order, Mutagen's own auto-detection loads
+  every plugin it finds physically present in the Data folder, regardless of plugins.txt - the
+  Enabled flag on each listing is carried through as inert metadata, never actually used to exclude
+  anything from being imported. This never affected MO2 users, since MO2's own materialized load
+  order was already built from only the actively-checked plugins. Non-MO2 runs now read the game's
+  own real plugins.txt first and explicitly build the load order from only the actually-enabled
+  entries (plus the game's own implicit base masters, which are never listed in plugins.txt to
+  begin with) - falling back to Mutagen's own auto-detection only if plugins.txt can't be read at
+  all. Verified directly: a real run scanned the correct vanilla+DLC record count with a genuinely
+  disabled plugin correctly excluded, where it previously would have been included.
+
 ## [1.0.17] - 2026-08-25
 
 ### Fixed

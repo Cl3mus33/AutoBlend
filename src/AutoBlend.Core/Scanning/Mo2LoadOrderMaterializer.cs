@@ -27,7 +27,9 @@ public sealed class Mo2LoadOrderMaterializer
     // to fail resolution ("Could not resolve existing TextureSet..." warnings) even though the
     // referenced texture files themselves were found and auto-generated just fine, since file
     // resolution and record resolution are entirely separate code paths.
-    private static readonly string[] ImplicitBaseMasterFileNames =
+    // Shared with PatchOrchestrator's own non-MO2 active-plugin-list construction - the same six
+    // files are implicit there too, for the exact same reason.
+    internal static readonly string[] ImplicitBaseMasterFileNames =
     {
         "Skyrim.esm",
         "Update.esm",

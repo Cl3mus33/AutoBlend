@@ -8,6 +8,7 @@ using Mutagen.Bethesda;
 using Mutagen.Bethesda.Environments;
 using Mutagen.Bethesda.Plugins;
 using Mutagen.Bethesda.Plugins.Cache;
+using Mutagen.Bethesda.Plugins.Order;
 using Mutagen.Bethesda.Skyrim;
 using nifly;
 
@@ -107,10 +108,58 @@ public sealed class PatchOrchestrator
         Report($"Loading game environment... (data folder: {envDataFolder}, {envArchiveNames.Count} archive(s) found"
             + (envArchiveNames.Count > 0 ? $": {string.Join(", ", envArchiveNames.Take(10))}" : string.Empty) + ")");
 
+        // Without an explicit load order, Mutagen's own auto-detection (the branch below this used
+        // to always take for a non-MO2/Vortex setup) imports EVERY plugin it finds physically
+        // present in the Data folder, regardless of whether plugins.txt actually marks it active -
+        // confirmed directly against Mutagen's own source (LoadOrderImporter.Import calls
+        // Importer.Import for every listing unconditionally, only ever carrying the listing's own
+        // Enabled flag through as inert metadata on the result). Reported directly: a DISABLED
+        // plugin (deployed loose by Vortex, which - unlike MO2's own per-profile plugins.txt - only
+        // ever toggles the same real plugins.txt Skyrim itself uses, without removing the file
+        // itself) still got treated as a winning-override source and ended up as a master of
+        // AutoBlend's own output, breaking PG Patcher (which correctly only considers the real
+        // active load order) even though AutoBlend's own generation "succeeded". Reading the real
+        // plugins.txt ourselves first and passing only the actually-enabled entries closes this the
+        // same way Mo2LoadOrderMaterializer already does for MO2 - falling back to Mutagen's own
+        // auto-detection only if this can't be read at all, rather than ever silently including
+        // disabled plugins' own records.
+        ModKey[]? activeLoadOrder = null;
+        if (materializedLoadOrder is null)
+        {
+            try
+            {
+                // PluginListings.LoadOrderListings itself has no notion of the game's own implicit
+                // base masters (Skyrim.esm and the official DLCs are never actually written to
+                // plugins.txt by the game itself, since they can't be disabled) - without adding
+                // them explicitly here too (same list, same reasoning as
+                // Mo2LoadOrderMaterializer's own identical one), the very first real run against
+                // this new active-only list scanned zero records at all, since nothing in
+                // plugins.txt itself named Skyrim.esm.
+                var activePluginNames = PluginListings.LoadOrderListings(gameRelease, dataFolder, throwOnMissingMods: false)
+                    .Where(l => l.Enabled)
+                    .Select(l => l.ModKey.FileName.String)
+                    .ToList();
+                var alreadyListed = new HashSet<string>(activePluginNames, StringComparer.OrdinalIgnoreCase);
+                activeLoadOrder = Mo2LoadOrderMaterializer.ImplicitBaseMasterFileNames
+                    .Where(name => !alreadyListed.Contains(name))
+                    .Concat(activePluginNames)
+                    .Select(name => ModKey.FromNameAndExtension(name))
+                    .ToArray();
+            }
+            catch (Exception ex)
+            {
+                warnings.Add("Could not read the game's own plugins.txt to filter to only active plugins "
+                    + $"({ex.Message}) - falling back to Mutagen's own auto-detection, which may incorrectly "
+                    + "include disabled plugins' own records.");
+            }
+        }
+
         var envBuilder = GameEnvironment.Typical.Builder(gameRelease).WithTargetDataFolder(envDataFolder);
         using var env = materializedLoadOrder is not null
             ? envBuilder.WithLoadOrder(materializedLoadOrder.LoadOrder.ToArray()).Build()
-            : envBuilder.Build();
+            : activeLoadOrder is not null
+                ? envBuilder.WithLoadOrder(activeLoadOrder).Build()
+                : envBuilder.Build();
 
         using IGameFileProbe fileProbe = mo2Reader is not null
             ? new Mo2ModlistFileProbe(mo2Reader, dataFolder, _settings.GameType)
