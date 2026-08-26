@@ -662,9 +662,33 @@ public sealed class PatchOrchestrator
             // BinaryWriteBuilder.WithMastersListOrdering's doc comment) puts Skyrim.esm first like
             // it always is in any real load order, without changing WithNoLoadOrder's own behavior
             // otherwise (still writing this mod standalone, not validating against real files).
-            patchMod.BeginWrite.ToPath(outputEspPath).WithNoLoadOrder()
-                .WithMastersListOrdering(env.LoadOrder.ListedOrder.Select(l => l.ModKey))
-                .Write();
+            //
+            // env.LoadOrder only reflects OUR OWN explicitly-materialized plugin list though - a
+            // mod's own REQUIRED masters that Mutagen loads transparently to resolve that mod's own
+            // records (e.g. a Creation Club .esm nobody separately "activated" in plugins.txt, only
+            // ever pulled in as another active mod's own declared master) never gets added to that
+            // list, even though records from it resolve perfectly well all through this run. If
+            // patchMod ends up referencing one of those as its own master, Mutagen's own sort throws
+            // ("A referenced mod was not present on the load order being sorted against...") -
+            // reported directly, crashing the whole run right at the very end after everything else
+            // already succeeded. MastersListOrderingByLoadOrder does define a Strict flag for
+            // exactly this ("whether to throw..."), but it's dead in Mutagen 0.54.4 - confirmed
+            // directly against its own source, ModHeaderWriteLogic.SortMasters never reads it - so
+            // this has to be handled here instead: fall back to the plain (alphabetical-master-order)
+            // write that always worked before this fix, rather than losing the whole run's output
+            // over an edge case in what should only ever be a cosmetic ordering improvement.
+            try
+            {
+                patchMod.BeginWrite.ToPath(outputEspPath).WithNoLoadOrder()
+                    .WithMastersListOrdering(env.LoadOrder.ListedOrder.Select(l => l.ModKey))
+                    .Write();
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Could not sort the plugin's own master list by load order ({ex.Message}) - "
+                    + "written with Mutagen's own default (alphabetical) order instead.");
+                patchMod.BeginWrite.ToPath(outputEspPath).WithNoLoadOrder().Write();
+            }
         }
 
         return new PatchRunResult(

@@ -5,6 +5,20 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.17] - 2026-08-25
+
+### Fixed
+- Fixed a crash right at the very end of a run ("A referenced mod was not present on the load
+  order being sorted against: ...") introduced by 1.0.15's own master-list-ordering fix - reported
+  directly, on a load order where the generated plugin ended up referencing a Creation Club .esm
+  that was only ever pulled in as another active mod's own required master, never separately
+  listed as active itself. Mutagen transparently resolves records from a master like that all
+  through a run, but the ordering fix's own load-order list didn't include it, and Mutagen's own
+  "Strict" opt-out for this exact case turned out to be unwired dead code in the version this
+  project uses (confirmed directly against its source). Falls back to the plain (pre-1.0.15,
+  alphabetical) master order in this specific edge case now, rather than losing the whole run's
+  output after every mesh already finished processing successfully.
+
 ## [1.0.16] - 2026-08-25
 
 ### Fixed
