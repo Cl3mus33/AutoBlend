@@ -6,7 +6,7 @@
     "close": "Schließen"
   },
   "launcher": {
-    "intro": "Durchsucht deine Ladereihenfolge nach statics-/blending-/blend-Textur-Varianten (z. B. ein \"statics\"-Unterordner neben einer beliebigen Textur) und patcht die passenden Meshes von Alpha-Test auf Alpha-Blend, wobei ein eigenes Ausgabe-Plugin mit den abgeleiteten Texture Sets erzeugt wird.",
+    "intro": "Durchsucht deine Ladereihenfolge nach statics-/blending-/blend-Textur-Varianten (z. B. ein \"statics\"-Unterordner neben einer beliebigen Textur) und patcht die passenden Meshes von Alpha-Test auf Alpha-Blend, wobei ein eigenes Ausgabe-Plugin mit den abgeleiteten Texture Sets erzeugt wird. Deaktiviere PG Patcher, bevor du dies ausführst - ist es aktiv, scannt AutoBlend die von PG Patcher bereits veränderten Meshes statt der Originale.",
     "configProfile": {
       "label": "Konfigurationsprofil",
       "load": "Konfiguration laden...",

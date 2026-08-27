@@ -6,7 +6,7 @@
     "close": "Fermer"
   },
   "launcher": {
-    "intro": "Analyse votre ordre de chargement à la recherche de variantes de texture statics/blending/blend (ex. un sous-dossier \"statics\" à côté de n'importe quelle texture) et patche les meshes correspondants pour passer de l'alpha-test à l'alpha-blend, en générant un plugin de sortie dédié avec les texture sets dérivés.",
+    "intro": "Analyse votre ordre de chargement à la recherche de variantes de texture statics/blending/blend (ex. un sous-dossier \"statics\" à côté de n'importe quelle texture) et patche les meshes correspondants pour passer de l'alpha-test à l'alpha-blend, en générant un plugin de sortie dédié avec les texture sets dérivés. Désactivez PG Patcher avant de lancer ceci - s'il est actif, AutoBlend finit par analyser les meshes déjà modifiés par PG Patcher au lieu des originaux.",
     "configProfile": {
       "label": "Profil de configuration",
       "load": "Charger la configuration...",

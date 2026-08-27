@@ -5,6 +5,14 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.0.19] - 2026-08-27
+
+### Changed
+- The launcher's intro text now tells users to disable PG Patcher before running AutoBlend -
+  reported directly on Nexus: if PG Patcher is active, AutoBlend ends up scanning the meshes PG
+  Patcher has already altered instead of the originals, and some users only discovered this after
+  needing to rerun the whole thing.
+
 ## [1.0.18] - 2026-08-26
 
 ### Fixed

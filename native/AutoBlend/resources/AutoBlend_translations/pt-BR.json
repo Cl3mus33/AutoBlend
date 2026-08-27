@@ -6,7 +6,7 @@
     "close": "Fechar"
   },
   "launcher": {
-    "intro": "Verifica sua ordem de carregamento em busca de variantes de textura statics/blending/blend (ex. uma subpasta \"statics\" ao lado de qualquer textura) e corrige as meshes correspondentes de alpha-test para alpha-blend, gerando um plugin de saída dedicado com os texture sets derivados.",
+    "intro": "Verifica sua ordem de carregamento em busca de variantes de textura statics/blending/blend (ex. uma subpasta \"statics\" ao lado de qualquer textura) e corrige as meshes correspondentes de alpha-test para alpha-blend, gerando um plugin de saída dedicado com os texture sets derivados. Desative o PG Patcher antes de executar isto - se estiver ativo, o AutoBlend acaba analisando as meshes que o PG Patcher já alterou, em vez das originais.",
     "configProfile": {
       "label": "Perfil de configuração",
       "load": "Carregar configuração...",

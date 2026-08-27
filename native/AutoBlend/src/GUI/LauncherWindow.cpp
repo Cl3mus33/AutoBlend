@@ -77,9 +77,11 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
 
     auto* introText = new wxStaticText(generalPanel, wxID_ANY,
         ABTr("launcher.intro",
-            "Scans your load order for landscape texture variants (statics/blending subfolders "
-            "under */landscape/) and patches matching meshes to alpha-blend instead of alpha-test, "
-            "generating a dedicated output plugin with the derived texture sets."));
+            "Scans your load order for statics/blending/blend texture variants (e.g. a \"statics\" "
+            "subfolder next to any texture) and patches matching meshes to alpha-blend instead of "
+            "alpha-test, generating a dedicated output plugin with the derived texture sets. Disable "
+            "PG Patcher before running this - if it's active, AutoBlend ends up scanning the meshes "
+            "PG Patcher already altered instead of the originals."));
     introText->Wrap(530);
     generalSizer->Add(introText, 0, wxALL, BORDER_SIZE * 2);
 
