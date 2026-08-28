@@ -5,6 +5,22 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-29
+
+### Fixed
+- **Fixed generated PBR textures (statics/blending/blend variants) staying on their vanilla path
+  even with a matching PBRNifPatcher json seemingly already available from another mod** - reported
+  directly (RadiantWings, Vanaheimr): PG Patcher would set the "this is PBR" shader flag on the
+  affected shape (it has its own, separate heuristic for that, based on an RMAOS file existing
+  anywhere) but never actually repoint the diffuse texture, since nothing was ever authored against
+  the EXACT nested identity PG Patcher's own diffuse-repoint step needed. AutoBlend was skipping its
+  own dedicated json entry whenever a same-named entry existed ANYWHERE in the load order - including
+  a bare-filename one (e.g. Vanaheimr's own "rocks01" json), on the assumption that PG Patcher's
+  suffix-match would apply it at any nesting depth. Reproduced directly against a real PG Patcher
+  run that this isn't reliable in practice. AutoBlend now always writes its own dedicated entry keyed
+  to the exact nested path (e.g. "landscape\blend\rocks01"), cloning an existing entry's tuned
+  material parameters when one is found rather than skipping generation entirely.
+
 ## [1.0.19] - 2026-08-27
 
 ### Changed

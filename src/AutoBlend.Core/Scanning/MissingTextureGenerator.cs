@@ -136,16 +136,21 @@ public sealed class MissingTextureGenerator
     /// own discovery scans the whole "PBRNifPatcher\" subtree regardless of file count, so this
     /// changes nothing about what gets matched, only how many files AutoBlend itself adds.
     ///
-    /// Does nothing if the nested variant already has its own entry ANYWHERE in the load order
-    /// (some packs, like Vanaheimr, ship one explicitly even though their own bare-filename
-    /// convention wouldn't have needed it) - checked via <see cref="TryFindExistingPbrEntry"/>, the
-    /// same load-order-wide index used below for the parent. Otherwise searches every PBRNifPatcher
-    /// json anywhere in the load order for a single entry that already covers the PARENT texture -
-    /// this is what catches a pack like "Sloppy Vanilla Landscapes PBR", which ships ALL of its
-    /// entries bundled into one arbitrarily-named combined json rather than one file per texture, and
-    /// is also what a pack's own dedicated per-texture json resolves through (that file is itself
-    /// part of the same index, so no separate direct-path check is needed). Only as a last resort,
-    /// when nothing anywhere already describes this texture, is a fresh default authored (see
+    /// Does nothing if the nested variant already has its own entry, keyed to that EXACT full
+    /// identity, ANYWHERE in the load order (some packs, like Vanaheimr, ship one explicitly even
+    /// though their own bare-filename convention wouldn't have needed it) - checked via
+    /// <see cref="TryFindExistingPbrEntry"/> with bare-filename fallback disabled. A bare-filename
+    /// match alone is NOT treated as existing coverage here (see that method's own doc comment for
+    /// why - reproduced directly: PG Patcher set the PBR shader flag via its own separate heuristic
+    /// but never repointed the diffuse itself, because nothing was ever authored against the exact
+    /// nested identity it needed). Otherwise searches every PBRNifPatcher json anywhere in the load
+    /// order (bare-filename fallback allowed here - this is a DONOR lookup, not a skip decision) for
+    /// a single entry that already covers the PARENT texture - this is what catches a pack like
+    /// "Sloppy Vanilla Landscapes PBR", which ships ALL of its entries bundled into one
+    /// arbitrarily-named combined json rather than one file per texture, and is also what a pack's
+    /// own dedicated per-texture json resolves through (that file is itself part of the same index,
+    /// so no separate direct-path check is needed). Only as a last resort, when nothing anywhere
+    /// already describes this texture, is a fresh default authored (see
     /// <see cref="BuildDefaultEntry"/>).
     ///
     /// <paramref name="pbrNormalPath"/>/<paramref name="pbrHeightPath"/>/<paramref name="pbrRmaosPath"/>
@@ -175,10 +180,12 @@ public sealed class MissingTextureGenerator
             return;
         }
 
-        if (TryFindExistingPbrEntry(nestedMatchValue) is not null)
+        if (TryFindExistingPbrEntry(nestedMatchValue, allowBareNameFallback: false) is not null)
         {
-            // Some pack already ships a dedicated entry for this exact nested identity - nothing
-            // for AutoBlend to add.
+            // Some pack already ships a dedicated entry for this EXACT nested identity - nothing
+            // for AutoBlend to add. A bare-filename-only match doesn't count here (see
+            // TryFindExistingPbrEntry's own doc comment) - it's a real donor for parameters below,
+            // not proof PG Patcher will actually repoint this specific nested path's diffuse.
             return;
         }
 
@@ -232,12 +239,25 @@ public sealed class MissingTextureGenerator
     /// ships one json file per texture, named after it - "Sloppy Vanilla Landscapes PBR" was found
     /// shipping ALL of its entries bundled into a single "Sloppy Vanilla Landscapes.json" (the same
     /// convention AutoBlend's own combined output now follows too), so a plain per-texture-path
-    /// existence check would never find it even though the exact entry needed is right there. Indexed
-    /// once (lazily) under both the full identity and its bare filename, matching the two real
-    /// conventions PG Patcher's own suffix-match already tolerates (see TryMirrorPbrJson's own doc
-    /// comment on the Vanaheimr/TomatoRim distinction). Returns null if nothing anywhere covers it.
+    /// existence check would never find it even though the exact entry needed is right there.
     /// </summary>
-    private JsonObject? TryFindExistingPbrEntry(string vanillaIdentity)
+    /// <param name="allowBareNameFallback">
+    /// When true (the default - used for DONOR lookup, i.e. borrowing an existing entry's tuned
+    /// material parameters), also matches on the bare filename alone (e.g. a Vanaheimr-style entry
+    /// keyed just "rocks01"), on the assumption that PG Patcher's own suffix-match would apply that
+    /// same entry at any nesting depth. Reproduced directly against a real PG Patcher run that this
+    /// assumption does NOT hold for the actual diffuse-texture-set repoint: PG Patcher set the "this
+    /// is PBR" shader flag (via its own, separate RMAOS-existence heuristic) but left the shape's
+    /// diffuse slot on the vanilla path, because no entry was ever written whose own match key is
+    /// the FULL nested identity ("landscape\blend\rocks01", not just "rocks01") - the bare-filename
+    /// donor is real and does get used for material PARAMETERS, but doesn't, on its own, drive PG
+    /// Patcher's diffuse repoint for a nested identity it was never authored against. Pass false when
+    /// deciding whether to SKIP writing our own dedicated entry (see TryMirrorPbrJson) - a full-identity
+    /// match there means a pack genuinely already ships this exact nested path; a bare-filename match
+    /// does not, and must not be treated as if it does.
+    /// </param>
+    /// <returns>Null if nothing anywhere covers it.</returns>
+    private JsonObject? TryFindExistingPbrEntry(string vanillaIdentity, bool allowBareNameFallback = true)
     {
         EnsurePbrJsonEntryIndexBuilt();
 
@@ -245,6 +265,11 @@ public sealed class MissingTextureGenerator
         if (_pbrJsonEntryIndex!.TryGetValue(normalized, out var json))
         {
             return JsonNode.Parse(json) as JsonObject;
+        }
+
+        if (!allowBareNameFallback)
+        {
+            return null;
         }
 
         var bareName = NormalizeMatchValue(Path.GetFileName(vanillaIdentity));
