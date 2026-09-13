@@ -7,6 +7,9 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [1.2.0] - 2026-08-29
 
+### Added
+- Turkish translation, contributed by burako54.
+
 ### Fixed
 - **Fixed generated PBR textures (statics/blending/blend variants) staying on their vanilla path
   even with a matching PBRNifPatcher json seemingly already available from another mod** - reported
