@@ -1,0 +1,97 @@
+{
+  "_language": "Türkçe",
+  "common": {
+    "browse": "Gözat",
+    "cancel": "İptal",
+    "close": "Kapat"
+  },
+  "launcher": {
+    "intro": "Yükleme sıranızı statics/blending/blend doku varyantları için tarar (örneğin herhangi bir dokunun yanında bulunan bir \"statics\" alt klasörü) ve eşleşen ağları alpha-test yerine alpha-blend kullanacak şekilde yamalar. Türetilmiş texture set'leriyle özel bir çıktı eklentisi oluşturur. Bunu çalıştırmadan önce PG Patcher'ı devre dışı bırakın; etkinse AutoBlend, PG Patcher'ın zaten değiştirdiği ağları özgünleri yerine tarar.",
+    "configProfile": {
+      "label": "Yapılandırma Profili",
+      "load": "Yapılandırmayı Yükle...",
+      "saveAs": "Yapılandırmayı Farklı Kaydet...",
+      "loadDialogTitle": "Yapılandırmayı Yükle",
+      "saveDialogTitle": "Yapılandırmayı Farklı Kaydet",
+      "fileFilter": "JSON dosyaları (*.json)|*.json|Tüm dosyalar (*.*)|*.*"
+    },
+    "gameLocation": {
+      "label": "Oyun Konumu",
+      "dialogTitle": "Oyun Konumunu Seç"
+    },
+    "outputLocation": {
+      "label": "Çıktı Konumu",
+      "dialogTitle": "Çıktı Konumunu Seç"
+    },
+    "modManager": {
+      "label": "Mod Yöneticisi",
+      "none": "Yok / Vortex",
+      "mo2": "Mod Organizer 2"
+    },
+    "mo2InstancePath": {
+      "label": "MO2 Örnek Yolu",
+      "dialogTitle": "MO2 Örnek Klasörünü Seç"
+    },
+    "mo2Profile": {
+      "label": "MO2 Profili"
+    },
+    "meshBlacklist": {
+      "label": "Ağ Kara Listesi",
+      "help": "Buradaki bir kuralla eşleşen ağlar hiçbir zaman yamalanmaz. Joker karakterlere (*) izin verilir; örneğin \"*\\glass\\*\". Satır eklemek/kaldırmak için sağ tıklayın.",
+      "column": "Kural"
+    },
+    "editorIdKeywords": {
+      "label": "EditorID Kara Liste Anahtar Sözcükleri",
+      "help": "EditorID'si bu sözcüklerden birini içeren kayıtlar (büyük/küçük harfe duyarsız) tamamen atlanır. Alpha-test'in kasıtlı olarak kullanıldığı durumlarda faydalıdır (ör. \"ice\", \"glass\"). Satır eklemek/kaldırmak için sağ tıklayın.",
+      "column": "Anahtar Sözcük"
+    },
+    "autoGenerateAllowlist": {
+      "label": "Otomatik Üretim İzin Listesi",
+      "editButton": "İzin Listesini Düzenle...",
+      "help": "Yalnızca bu kaynak diffuse dokularına (Data klasörüne göreli; ör. \"textures\\landscape\\dirt01.dds\") eksik statics eş dokusu otomatik olarak oluşturulur. Joker karakterlere (*) izin verilir. Satır eklemek/kaldırmak için sağ tıklayın.",
+      "column": "Doku"
+    },
+    "generatePbrSlots": {
+      "label": "PBR Yuvalarını Oluştur"
+    },
+    "tab": {
+      "general": "Genel",
+      "options": "Seçenekler"
+    },
+    "language": {
+      "label": "Dil"
+    },
+    "theme": {
+      "label": "Tema",
+      "system": "Sistem",
+      "light": "Açık",
+      "dark": "Koyu"
+    },
+    "startButton": "Yamalamayı Başlat",
+    "missingGameLocation": {
+      "message": "Lütfen oyununuzun kurulum konumunu seçin.",
+      "title": "Oyun Konumu Eksik"
+    },
+    "missingOutputLocation": {
+      "message": "Lütfen bir çıktı konumu seçin.",
+      "title": "Çıktı Konumu Eksik"
+    },
+    "missingMo2Instance": {
+      "message": "Lütfen Mod Organizer 2 örneğinizin klasörünü seçin.",
+      "title": "MO2 Örneği Eksik"
+    }
+  },
+  "progress": {
+    "starting": "Başlatılıyor...",
+    "showDetails": "Ayrıntıları Göster",
+    "working": "Çalışıyor...",
+    "done": "Tamamlandı.",
+    "failed": "Başarısız - ayrıntılar için aşağıya bakın.",
+    "doneClose": "Tamamlandı - Kapat",
+    "failedClose": "Başarısız - Kapat",
+    "completion": {
+      "message": "Oluşturma tamamlandı. Henüz etkin değilse AutoBlend'in çıktı eklentisini mod yöneticinizin eklenti listesinden etkinleştirmeyi unutmayın.",
+      "title": "AutoBlend"
+    }
+  }
+}
