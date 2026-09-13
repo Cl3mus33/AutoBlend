@@ -123,6 +123,17 @@ auto ABConfig::loadFrom(const filesystem::path& configFilePath) -> ABParams
                 params.meshBlacklist.push_back(LR"(*\roads\*)");
             }
 
+            // Tree debris (fallen logs, cut stumps) is authored as plain Static records living in
+            // the same "Landscape\Trees\..." folder as real Tree records - part of the original
+            // default set, but never actually covered by a backfill of its own, so a settings.json
+            // saved before this rule existed (or one where a user removed it by hand) never picks
+            // it back up. Same once-only backfill pattern as the roads/dungeons rules.
+            const bool hasTreesRule = std::any_of(params.meshBlacklist.begin(), params.meshBlacklist.end(),
+                [](const std::wstring& pattern) { return _wcsicmp(pattern.c_str(), LR"(*\trees\*)") == 0; });
+            if (!hasTreesRule) {
+                params.meshBlacklist.push_back(LR"(*\trees\*)");
+            }
+
             // Dungeon/cave meshes (Nordic ruins, mine tunnels, etc.) often reuse the same rock/dirt
             // landscape textures as real terrain, with the same false-positive risk as the roads
             // case above (reported directly). Same once-only backfill for a settings.json saved

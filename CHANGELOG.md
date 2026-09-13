@@ -5,10 +5,21 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
-## [1.2.0] - 2026-08-29
+## [1.2.1] - 2026-09-13
 
 ### Added
-- Turkish translation, contributed by burako54.
+- Turkish (`tr`) GUI translation, contributed by burako54 via Nexus.
+
+### Fixed
+- **`*\trees\*` was missing from the native shell's own default Mesh Blacklist, and from both
+  shells' once-only backfill for an existing `settings.json`** - unlike `roads`/`dungeons`/
+  `effects`/`magic`/`weapons`/`actors`, which are all correctly backfilled into a pre-existing
+  settings file that predates them. A fresh native-shell install (unlike the WPF shell, whose own
+  defaults already had it) would silently start without tree-debris exclusion, and an existing
+  user whose `settings.json` predates the rule - or who removed it by hand - would never get it
+  back on update either way. Both shells now default to and backfill `*\trees\*` consistently.
+
+## [1.2.0] - 2026-08-29
 
 ### Fixed
 - **Fixed generated PBR textures (statics/blending/blend variants) staying on their vanilla path

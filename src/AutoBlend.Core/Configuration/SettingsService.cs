@@ -50,6 +50,16 @@ public sealed class SettingsService
             settings.MeshBlacklist.Add(@"*\roads\*");
         }
 
+        // Tree debris (fallen logs, cut stumps) is authored as plain Static records living in the
+        // same "Landscape\Trees\..." folder as real Tree records - part of the original default
+        // set, but never actually covered by a backfill of its own, so a settings.json saved before
+        // this rule existed (or one where a user removed it by hand) never picks it back up. Same
+        // once-only backfill pattern as the roads/dungeons rules.
+        if (!settings.MeshBlacklist.Any(p => p.Equals(@"*\trees\*", StringComparison.OrdinalIgnoreCase)))
+        {
+            settings.MeshBlacklist.Add(@"*\trees\*");
+        }
+
         // Dungeon/cave meshes reuse the same rock/dirt landscape textures as real terrain, with the
         // same false-positive risk as the roads case above (reported directly). Same once-only
         // backfill for a settings.json saved before this rule existed.
