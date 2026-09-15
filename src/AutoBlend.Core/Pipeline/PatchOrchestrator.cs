@@ -737,11 +737,19 @@ public sealed class PatchOrchestrator
             // CanBeSmallMaster is Mutagen's own check against that same ceiling - only flip the
             // flag when it actually holds, so an unusually large run still writes a normal ESP
             // instead of a corrupt one.
-            if (patchMod.CanBeSmallMaster)
+            //
+            // ESL/light plugins are a Skyrim SE-only engine feature - Mutagen's own
+            // SkyrimMod.CanBeSmallMaster returns true purely from the FormID/record-count ceiling,
+            // with no awareness that Legendary Edition's engine has no concept of the ESL flag at
+            // all (confirmed directly against Mutagen's own source while adding this same check to
+            // Snow Fixer). Flagging AutoBlend Output ESL for an LE run would produce a plugin LE
+            // can't actually load correctly, even though GameType has supported LE here for a
+            // while - this only ever applies on SE.
+            if (_settings.GameType == GameType.SkyrimSE && patchMod.CanBeSmallMaster)
             {
                 patchMod.IsSmallMaster = true;
             }
-            else
+            else if (_settings.GameType == GameType.SkyrimSE)
             {
                 warnings.Add("This run's own new records exceed the ESL limit - plugin written as a "
                     + "regular (non-ESL) ESP instead.");
