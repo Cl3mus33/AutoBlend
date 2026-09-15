@@ -33,7 +33,7 @@ public enum MeshOverrideSetting
 
 /// <summary>
 /// Mod authors can ship their own per-mesh overrides alongside their mod: a JSON array of
-/// {mesh_Filepath, setting} entries in a file at the Data root named "*_autoblend_schema.json" -
+/// {mesh_Filepath, setting} entries in a file at the Data root named "*_autoblend_exceptions.json" -
 /// same one-uniquely-named-file-per-mod convention as <see cref="ModProvidedAllowlistReader"/>'s
 /// own "*_autoblend.json", so several mods' own files never collide and all contribute.
 ///
@@ -45,7 +45,7 @@ public enum MeshOverrideSetting
 /// </summary>
 public static class ModProvidedMeshConfigReader
 {
-    private const string FileSuffix = "_autoblend_schema.json";
+    private const string FileSuffix = "_autoblend_exceptions.json";
 
     private sealed record MeshOverrideEntry(
         [property: JsonPropertyName("mesh_Filepath")] string? MeshFilepath,

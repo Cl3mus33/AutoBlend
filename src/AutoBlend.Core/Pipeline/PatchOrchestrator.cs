@@ -48,7 +48,7 @@ public sealed class PatchOrchestrator
         /// own embedded default is.</summary>
         AltTexDerived,
 
-        /// <summary>A mod-provided "*_autoblend_schema.json" (see ModProvidedMeshConfigReader)
+        /// <summary>A mod-provided "*_autoblend_exceptions.json" (see ModProvidedMeshConfigReader)
         /// forces this mesh into blend mode even though nothing was actually detected for it -
         /// mesh-level alpha-mode flip only, same as BaseDerived/AltTexDerived for the purposes of
         /// the shared-mesh alpha flip pass in Run(), but never gets a derived TextureSet/Alternate
@@ -207,12 +207,12 @@ public sealed class PatchOrchestrator
         }
 
         // Mod authors can also ship precise per-mesh overrides (Blend/Test) alongside their mod in
-        // a "*_autoblend_schema.json" file - see ModProvidedMeshConfigReader's own remarks for why
+        // a "*_autoblend_exceptions.json" file - see ModProvidedMeshConfigReader's own remarks for why
         // this is a flat list of exceptions rather than a file-wide default.
         var meshOverrides = ModProvidedMeshConfigReader.Collect(mo2Reader, dataFolder, warnings);
         if (meshOverrides.Count > 0)
         {
-            Report($"Loaded {meshOverrides.Count} mod-provided mesh override(s) from *_autoblend_schema.json file(s).");
+            Report($"Loaded {meshOverrides.Count} mod-provided mesh override(s) from *_autoblend_exceptions.json file(s).");
         }
 
         MissingTextureGenerator? textureGenerator = null;
@@ -458,7 +458,7 @@ public sealed class PatchOrchestrator
                     perRecordTreatment[formKey] = ClassifyRecord(formKey, recordKinds[formKey], alphaShapes, env, folderDetector, AddWarning);
                 }
 
-                // A mod-provided *_autoblend_schema.json entry for this exact mesh path overrides
+                // A mod-provided *_autoblend_exceptions.json entry for this exact mesh path overrides
                 // whatever every record's own classification above just decided - Test forces every
                 // shape back to Untouched (the precise-exclusion case), Blend upgrades any shape
                 // that's still Untouched to ForcedBlend (a shape ClassifyRecord already derived a
@@ -614,7 +614,7 @@ public sealed class PatchOrchestrator
                     {
                         if (t.Kind is ShapeTreatmentKind.Untouched or ShapeTreatmentKind.ForcedBlend)
                         {
-                            // ForcedBlend (a mod-provided *_autoblend_schema.json override) has no
+                            // ForcedBlend (a mod-provided *_autoblend_exceptions.json override) has no
                             // Detection/Source to derive a TextureSet from - the mesh-level alpha
                             // flip pass above already handles it entirely on its own, nothing more
                             // is needed at the ESP level for this shape.
