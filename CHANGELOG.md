@@ -5,6 +5,15 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-09-15
+
+### Fixed
+- **Fixed the ESL auto-flag being applied on Skyrim LE runs** - ESL/light plugins are an SE-only
+  engine feature, and Mutagen's own `CanBeSmallMaster` check has no awareness of that, so an LE run
+  would have produced `AutoBlend Output` flagged ESL despite LE having no concept of that flag at
+  all - a plugin LE can't actually load correctly. `GameType` has supported LE for a while, but
+  this specific interaction was never caught until now. Only applies on SE going forward.
+
 ## [1.2.2] - 2026-09-15
 
 ### Added
