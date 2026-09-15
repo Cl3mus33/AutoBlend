@@ -47,6 +47,14 @@ public sealed class PatchOrchestrator
         /// THAT texture set's Diffuse resolves - record-specific, independent of what the mesh's
         /// own embedded default is.</summary>
         AltTexDerived,
+
+        /// <summary>A mod-provided "*_autoblend_schema.json" (see ModProvidedMeshConfigReader)
+        /// forces this mesh into blend mode even though nothing was actually detected for it -
+        /// mesh-level alpha-mode flip only, same as BaseDerived/AltTexDerived for the purposes of
+        /// the shared-mesh alpha flip pass in Run(), but never gets a derived TextureSet/Alternate
+        /// Texture (there is no Source/Detection to derive one from) - explicitly skipped in that
+        /// part of Run() instead.</summary>
+        ForcedBlend,
     }
 
     /// <summary>One shape with NiAlphaProperty found on a mesh, plus what its own embedded
@@ -196,6 +204,15 @@ public sealed class PatchOrchestrator
         if (modProvidedAllowlist.Count > 0)
         {
             Report($"Merged {modProvidedAllowlist.Count} mod-provided allowlist entry/entries from *_autoblend.json file(s).");
+        }
+
+        // Mod authors can also ship precise per-mesh overrides (Blend/Test) alongside their mod in
+        // a "*_autoblend_schema.json" file - see ModProvidedMeshConfigReader's own remarks for why
+        // this is a flat list of exceptions rather than a file-wide default.
+        var meshOverrides = ModProvidedMeshConfigReader.Collect(mo2Reader, dataFolder, warnings);
+        if (meshOverrides.Count > 0)
+        {
+            Report($"Loaded {meshOverrides.Count} mod-provided mesh override(s) from *_autoblend_schema.json file(s).");
         }
 
         MissingTextureGenerator? textureGenerator = null;
@@ -441,6 +458,29 @@ public sealed class PatchOrchestrator
                     perRecordTreatment[formKey] = ClassifyRecord(formKey, recordKinds[formKey], alphaShapes, env, folderDetector, AddWarning);
                 }
 
+                // A mod-provided *_autoblend_schema.json entry for this exact mesh path overrides
+                // whatever every record's own classification above just decided - Test forces every
+                // shape back to Untouched (the precise-exclusion case), Blend upgrades any shape
+                // that's still Untouched to ForcedBlend (a shape ClassifyRecord already derived a
+                // real texture for is left as-is - it's already blending, nothing to force).
+                if (meshOverrides.TryGetValue(meshRelativeToData, out var meshOverride))
+                {
+                    foreach (var treatment in perRecordTreatment.Values)
+                    {
+                        foreach (var shapeName in treatment.Keys.ToList())
+                        {
+                            var current = treatment[shapeName];
+                            treatment[shapeName] = meshOverride switch
+                            {
+                                MeshOverrideSetting.Test => current with { Kind = ShapeTreatmentKind.Untouched, Detection = null, Source = null },
+                                MeshOverrideSetting.Blend when current.Kind == ShapeTreatmentKind.Untouched =>
+                                    current with { Kind = ShapeTreatmentKind.ForcedBlend },
+                                _ => current,
+                            };
+                        }
+                    }
+                }
+
                 // Every shape treatment (BaseDerived - the mesh's own embedded default resolves - or
                 // AltTexDerived - a specific record's existing Alternate Texture resolves) gets
                 // handled identically from here on: derive/reuse a TXST and assign it via a new
@@ -554,11 +594,13 @@ public sealed class PatchOrchestrator
                         model.File.GivenPath = duplicateRelPath;
                     }
 
-                    var hasAnyDerived = treatment.Values.Any(t => t.Kind != ShapeTreatmentKind.Untouched);
+                    var hasAnyDerived = treatment.Values.Any(t => t.Kind is ShapeTreatmentKind.BaseDerived or ShapeTreatmentKind.AltTexDerived);
                     if (!hasAnyDerived)
                     {
                         // Benefits purely from the physical mesh (shared path or duplicate) -
-                        // nothing needs to change at the ESP level for this record.
+                        // nothing needs to change at the ESP level for this record. Also covers a
+                        // record whose only treatment is ForcedBlend (a mod-provided override),
+                        // which never gets its own Alternate Texture - see the shape loop below.
                         continue;
                     }
 
@@ -570,8 +612,12 @@ public sealed class PatchOrchestrator
 
                     foreach (var (shapeName, t) in treatment)
                     {
-                        if (t.Kind == ShapeTreatmentKind.Untouched)
+                        if (t.Kind is ShapeTreatmentKind.Untouched or ShapeTreatmentKind.ForcedBlend)
                         {
+                            // ForcedBlend (a mod-provided *_autoblend_schema.json override) has no
+                            // Detection/Source to derive a TextureSet from - the mesh-level alpha
+                            // flip pass above already handles it entirely on its own, nothing more
+                            // is needed at the ESP level for this shape.
                             continue;
                         }
 
