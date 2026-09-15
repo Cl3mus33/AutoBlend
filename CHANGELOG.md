@@ -5,6 +5,15 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-09-15
+
+### Added
+- Mod authors can now ship a `*_autoblend_schema.json` file (same one-file-per-mod convention as
+  the existing `*_autoblend.json` allowlist) declaring precise per-mesh `Blend`/`Test` overrides
+  that bypass the normal statics/blending/blend folder detection entirely - requested on Discord
+  (0cto_Processor). See the [Wiki](https://github.com/Cl3mus33/AutoBlend/wiki/Mod-Provided-Allowlists)
+  for the full format.
+
 ## [1.2.1] - 2026-09-13
 
 ### Added
