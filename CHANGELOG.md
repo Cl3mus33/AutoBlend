@@ -5,6 +5,13 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- **Fixed the launcher window being taller than the screen on smaller displays** - same issue Snow
+  Fixer's own identical layout hit, reported directly on Nexus: the dialog auto-sized itself to fit
+  every setting in the "General" tab, and on a smaller display that meant a window taller than the
+  screen itself, with no way to reach the controls (or even the Start button) below the fold. The
+  General tab now scrolls its own content instead of growing the whole dialog to fit it.
+
 ## [1.2.4] - 2026-09-17
 
 ### Added
