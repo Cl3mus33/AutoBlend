@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using AutoBlend.Core.Configuration;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Archives;
+using Mutagen.Bethesda.Archives.Exceptions;
 using Noggog;
 
 namespace AutoBlend.Core.Scanning;
@@ -32,6 +33,10 @@ public sealed class ArchiveAwareFileProbe : IGameFileProbe
     // path, not behind any other synchronization.
     private readonly ConcurrentDictionary<IArchiveReader, Dictionary<string, IArchiveFile>> _archiveIndexes = new();
 
+    // Needed only for ManualArchiveExtractor's own workaround (see OpenRead) - it has to reopen the
+    // physical archive file itself, and IArchiveReader has no public property exposing that back.
+    private readonly Dictionary<IArchiveReader, string> _readerArchivePaths = new();
+
     public ArchiveAwareFileProbe(string dataRoot, GameType gameType)
     {
         _looseProbe = new LooseFileProbe(dataRoot);
@@ -48,7 +53,9 @@ public sealed class ArchiveAwareFileProbe : IGameFileProbe
         {
             try
             {
-                readers.Add(Archive.CreateReader(release, archivePath));
+                var reader = Archive.CreateReader(release, archivePath);
+                readers.Add(reader);
+                _readerArchivePaths[reader] = archivePath.ToString();
             }
             catch (Exception)
             {
@@ -65,7 +72,7 @@ public sealed class ArchiveAwareFileProbe : IGameFileProbe
             return true;
         }
 
-        return TryFindArchiveFile(relativeDataPath, out _);
+        return TryFindArchiveFile(relativeDataPath, out _, out _);
     }
 
     public Stream OpenRead(string relativeDataPath)
@@ -75,9 +82,17 @@ public sealed class ArchiveAwareFileProbe : IGameFileProbe
             return _looseProbe.OpenRead(relativeDataPath);
         }
 
-        if (TryFindArchiveFile(relativeDataPath, out var file))
+        if (TryFindArchiveFile(relativeDataPath, out var file, out var reader))
         {
-            return file!.AsStream();
+            try
+            {
+                return file!.AsStream();
+            }
+            catch (ArchiveException) when (_readerArchivePaths.TryGetValue(reader!, out var archivePath)
+                && ManualArchiveExtractor.TryExtract(archivePath, file!, out var bytes))
+            {
+                return new MemoryStream(bytes!);
+            }
         }
 
         throw new FileNotFoundException($"'{relativeDataPath}' was not found loose or in any applicable archive.");
@@ -89,19 +104,21 @@ public sealed class ArchiveAwareFileProbe : IGameFileProbe
     public IEnumerable<string> EnumerateFiles(string relativeFolder, string extension) =>
         _looseProbe.EnumerateFiles(relativeFolder, extension);
 
-    private bool TryFindArchiveFile(string relativeDataPath, out IArchiveFile? file)
+    private bool TryFindArchiveFile(string relativeDataPath, out IArchiveFile? file, out IArchiveReader? reader)
     {
-        foreach (var reader in _archiveReaders)
+        foreach (var candidateReader in _archiveReaders)
         {
-            var index = GetOrBuildIndex(reader);
+            var index = GetOrBuildIndex(candidateReader);
             if (index.TryGetValue(relativeDataPath, out var match))
             {
                 file = match;
+                reader = candidateReader;
                 return true;
             }
         }
 
         file = null;
+        reader = null;
         return false;
     }
 

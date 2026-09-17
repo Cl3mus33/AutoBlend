@@ -30,7 +30,7 @@ namespace AutoBlend.Core.Scanning;
 public sealed class MissingTextureGenerator
 {
     [DllImport("AutoBlendTexTools.dll", CharSet = CharSet.Unicode)]
-    private static extern int ab_strip_alpha_to_opaque(string srcPath, string dstPath, int isPbr);
+    private static extern int ab_strip_alpha_to_opaque(string srcPath, string dstPath, int isPbr, int isLe);
 
     // A single combined file (matching how "Sloppy Vanilla Landscapes PBR" itself ships all of its
     // own entries bundled together, rather than one file per texture) under a name distinctive
@@ -42,6 +42,7 @@ public sealed class MissingTextureGenerator
 
     private readonly IGameFileProbe _fileProbe;
     private readonly string _outputLocation;
+    private readonly bool _isLe;
     private readonly Dictionary<string, string?> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly JsonArray _combinedPbrNifPatcherEntries = new();
     private readonly HashSet<string> _writtenPbrNifPatcherMatchKeys = new(StringComparer.OrdinalIgnoreCase);
@@ -73,10 +74,11 @@ public sealed class MissingTextureGenerator
     /// log on a modlist where generation can't run at all - the first entry always explains why.</summary>
     public IReadOnlyList<string> Diagnostics => _diagnostics;
 
-    public MissingTextureGenerator(IGameFileProbe fileProbe, string outputLocation)
+    public MissingTextureGenerator(IGameFileProbe fileProbe, string outputLocation, bool isLe = false)
     {
         _fileProbe = fileProbe;
         _outputLocation = outputLocation;
+        _isLe = isLe;
     }
 
     /// <summary>
@@ -541,7 +543,7 @@ public sealed class MissingTextureGenerator
         {
             Directory.CreateDirectory(outputDir);
 
-            var resultCode = ab_strip_alpha_to_opaque(extractedPath, generatedFullPath, isPbr ? 1 : 0);
+            var resultCode = ab_strip_alpha_to_opaque(extractedPath, generatedFullPath, isPbr ? 1 : 0, _isLe ? 1 : 0);
             if (resultCode != 0)
             {
                 AddDiagnostic($"'{sourceDiffusePath}': AutoBlendTexTools failed (code {resultCode}).");

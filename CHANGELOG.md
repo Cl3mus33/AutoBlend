@@ -5,6 +5,48 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-09-17
+
+### Added
+- **Game Type is now selectable in the native launcher** - a "Skyrim Special Edition"/"Skyrim
+  Legendary Edition" dropdown next to Game Location. `GameType` has been supported by
+  `AutoBlend.Core` (and the already-fixed LE-aware ESL flag from 1.2.3) for a while, but this shell
+  never exposed a way to actually pick LE - every run was silently hardcoded to SE regardless of
+  settings.json. Mirrors Snow Fixer's own Game Type dropdown. "Generate PBR slots" is now greyed
+  out (and force-unchecked) whenever Game Type is Legendary Edition - LE's engine has no PBR
+  support at all, so generating PBR slots there would produce data no LE setup can ever use.
+
+### Fixed
+- **First real LE run ever exposed three separate bugs, all now fixed**: with the Game Type
+  dropdown finally letting anyone actually pick LE, a real run against a Legendary Edition MO2
+  modlist generated textures for DLC02 content only - nothing from the base game.
+  - `Mo2InstanceReader.ReadActivePlugins` required the `*` active-marker prefix unconditionally -
+    Skyrim SE marks an active plugin with a leading `*` in `plugins.txt`, but Legendary Edition
+    predates ESL/light-plugin support entirely and writes no marker at all, so every LE profile's
+    real active mods were invisible; only the hardcoded implicit base masters got through.
+  - `_ResourcePack.esl` (Anniversary Edition/Creation Club's shared asset container) was included
+    unconditionally in the implicit base-master list, an SE-only file that doesn't exist on LE -
+    now gated the same way Snow Fixer's own identical list already was.
+  - **The real cause of the missing textures**: a genuine bug in the pinned Mutagen.Bethesda 0.54.4
+    itself - opening a COMPRESSED file entry from an LE-format (BSA v103) archive throws
+    `ArchiveException: "InflaterInputStream Length is not supported"` from deep inside Mutagen's
+    own BSA reader. Both `Skyrim - Textures.bsa` and `Skyrim - Meshes.bsa` (vanilla LE) are
+    compressed this way, so almost nothing from the base game was ever actually readable on LE -
+    Dragonborn.bsa (DLC02) happens not to be compressed, which is why only its own textures came
+    through. Reads now fall back to manually decompressing the entry (see the new
+    `ManualArchiveExtractor`) whenever this specific error occurs; Special Edition's own archives
+    are unaffected (confirmed empirically) and take the normal path exactly as before.
+  - **A fourth bug, found once textures actually started generating**: every texture
+    `MissingTextureGenerator` synthesizes was unconditionally recompressed to BC7 - a format that
+    needs the DX10-extended DDS header, which Legendary Edition's engine has zero support for.
+    Every "Blend"/statics variant AutoBlend generated on LE came out unreadable in-game (visible as
+    magenta/wrong-colored patches at alpha-blended edges) despite the plugin and mesh side of the
+    run succeeding cleanly. Confirmed directly: the generated texture's own header showed
+    `DXGI_FORMAT_BC7_UNORM` where every real vanilla LE texture uses the legacy FourCC `DXT5`.
+    `ab_strip_alpha_to_opaque` (AutoBlendTexTools.dll) now takes an `isLe` flag and recompresses to
+    BC3 - the direct legacy equivalent, and the format LE's own textures already use - instead of
+    BC7 when Game Type is Legendary Edition; Special Edition's own BC7 output is unchanged.
+
 ## [1.2.3] - 2026-09-15
 
 ### Fixed

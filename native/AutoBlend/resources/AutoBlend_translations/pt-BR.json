@@ -19,6 +19,11 @@
       "label": "Local do jogo",
       "dialogTitle": "Selecionar local do jogo"
     },
+    "gameType": {
+      "label": "Versão do jogo",
+      "se": "Skyrim Special Edition",
+      "le": "Skyrim Legendary Edition"
+    },
     "outputLocation": {
       "label": "Local de saída",
       "dialogTitle": "Selecionar local de saída"

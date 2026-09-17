@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Archives;
+using Mutagen.Bethesda.Archives.Exceptions;
 
 namespace AutoBlend.Core.Scanning;
 
@@ -42,6 +43,11 @@ public sealed class Mo2InstanceReader : IDisposable
     private readonly object _archiveReadersLock = new();
     private IReadOnlyList<IArchiveReader>? _modArchiveReaders;
     private readonly ConcurrentDictionary<IArchiveReader, Dictionary<string, IArchiveFile>> _archiveIndexes = new();
+
+    // Needed only for ManualArchiveExtractor's own workaround (see TryResolveLooseOrArchived) - it
+    // has to reopen the physical archive file itself, and IArchiveReader has no public property
+    // exposing that back.
+    private readonly ConcurrentDictionary<IArchiveReader, string> _readerArchivePaths = new();
 
     // TryResolve is a pure function of relativeDataPath given a fixed EnabledModFoldersHighToLowPriority
     // (never mutated after construction) - but it was re-walking every enabled mod folder's own
@@ -99,15 +105,31 @@ public sealed class Mo2InstanceReader : IDisposable
             return result;
         }
 
+        // Skyrim SE marks an active plugin with a leading '*' in plugins.txt; Legendary Edition
+        // predates ESL/light-plugin support entirely and writes no marker at all - every listed
+        // line there is simply active. Using the SE-only check unconditionally left every LE
+        // profile's active plugins invisible (only the hardcoded implicit base masters got through).
+        var requiresActiveMarker = _gameRelease == GameRelease.SkyrimSE;
         foreach (var rawLine in File.ReadAllLines(pluginsPath))
         {
             var line = rawLine.Trim();
-            if (line.Length == 0 || line.StartsWith('#') || !line.StartsWith('*'))
+            if (line.Length == 0 || line.StartsWith('#'))
             {
                 continue;
             }
 
-            result.Add(line[1..].Trim());
+            if (requiresActiveMarker)
+            {
+                if (!line.StartsWith('*'))
+                {
+                    continue;
+                }
+                result.Add(line[1..].Trim());
+            }
+            else
+            {
+                result.Add(line);
+            }
         }
         return result;
     }
@@ -171,8 +193,17 @@ public sealed class Mo2InstanceReader : IDisposable
             var index = GetOrBuildArchiveIndex(reader);
             if (index.TryGetValue(relativeDataPath, out var archiveFile))
             {
-                stream = archiveFile.AsStream();
-                return true;
+                try
+                {
+                    stream = archiveFile.AsStream();
+                    return true;
+                }
+                catch (ArchiveException) when (_readerArchivePaths.TryGetValue(reader, out var archivePath)
+                    && ManualArchiveExtractor.TryExtract(archivePath, archiveFile, out var bytes))
+                {
+                    stream = new MemoryStream(bytes!);
+                    return true;
+                }
             }
         }
 
@@ -283,7 +314,9 @@ public sealed class Mo2InstanceReader : IDisposable
                 {
                     try
                     {
-                        readers.Add(Archive.CreateReader(_gameRelease, archivePath));
+                        var reader = Archive.CreateReader(_gameRelease, archivePath);
+                        readers.Add(reader);
+                        _readerArchivePaths[reader] = archivePath;
                     }
                     catch
                     {

@@ -115,6 +115,19 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     gameLocationSizer->Add(gameBrowseButton, 0, wxALL, BORDER_SIZE);
     generalSizer->Add(gameLocationSizer, 0, wxEXPAND);
 
+    // Game type - LE support exists in AutoBlend.Core (the ESL/light-plugin flag is already gated
+    // on it) but was never exposed here before, silently leaving every run hardcoded to SE.
+    generalSizer->Add(makeSectionLabel(generalPanel, ABTr("launcher.gameType.label", "Game Type")), 0,
+        wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
+
+    wxArrayString gameTypeChoices;
+    gameTypeChoices.Add(ABTr("launcher.gameType.se", "Skyrim Special Edition"));
+    gameTypeChoices.Add(ABTr("launcher.gameType.le", "Skyrim Legendary Edition"));
+    m_gameTypeChoice = new wxChoice(generalPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize, gameTypeChoices);
+    m_gameTypeChoice->SetSelection(initParams.gameType == ABGameType::SKYRIM_LE ? 1 : 0);
+    m_gameTypeChoice->Bind(wxEVT_CHOICE, &LauncherWindow::onGameTypeChanged, this);
+    generalSizer->Add(m_gameTypeChoice, 0, wxEXPAND | wxALL, BORDER_SIZE);
+
     // Output location
     generalSizer->Add(makeSectionLabel(generalPanel, ABTr("launcher.outputLocation.label", "Output Location")), 0,
         wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
@@ -290,6 +303,8 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     m_generatePbrSlotsCheckbox->SetFont(pbrCheckboxFont);
     generalSizer->Add(m_generatePbrSlotsCheckbox, 0, wxALL, BORDER_SIZE);
 
+    updateGameTypeFieldState();
+
     generalPanel->SetSizer(generalSizer);
     notebook->AddPage(generalPanel, ABTr("launcher.tab.general", "General"));
 
@@ -397,9 +412,7 @@ void LauncherWindow::getParams(ABParams& outParams) const
     }
 
     outParams.gameLocation = m_gameLocationTextbox->GetValue().ToStdWstring();
-    // Skyrim LE is not offered in the UI - the backend (AutoBlend.Core, via Mutagen) still
-    // supports it, but nothing in this shell currently exposes a way to pick it.
-    outParams.gameType = ABGameType::SKYRIM_SE;
+    outParams.gameType = m_gameTypeChoice->GetSelection() == 1 ? ABGameType::SKYRIM_LE : ABGameType::SKYRIM_SE;
     outParams.outputLocation = m_outputLocationTextbox->GetValue().ToStdWstring();
     outParams.modManager
         = m_modManagerChoice->GetSelection() == 1 ? ABModManagerType::MOD_ORGANIZER_2 : ABModManagerType::NONE;
@@ -473,6 +486,22 @@ void LauncherWindow::onBrowseGameLocation([[maybe_unused]] wxCommandEvent& event
     if (dialog.ShowModal() == wxID_OK) {
         m_gameLocationTextbox->SetValue(dialog.GetPath());
     }
+}
+
+void LauncherWindow::onGameTypeChanged([[maybe_unused]] wxCommandEvent& event)
+{
+    updateGameTypeFieldState();
+}
+
+// PBR shaders are a Community Shaders/SE-era feature - Legendary Edition's engine has no PBR
+// support at all, so generating PBR slots would produce data no LE setup can ever use.
+void LauncherWindow::updateGameTypeFieldState()
+{
+    const bool isLe = m_gameTypeChoice->GetSelection() == 1;
+    if (isLe) {
+        m_generatePbrSlotsCheckbox->SetValue(false);
+    }
+    m_generatePbrSlotsCheckbox->Enable(!isLe);
 }
 
 void LauncherWindow::onBrowseOutputLocation([[maybe_unused]] wxCommandEvent& event)
@@ -599,6 +628,7 @@ void LauncherWindow::applyLoadedParams(const ABParams& params)
     // manager to target), so loading a profile shouldn't change how the window you're looking at
     // right now is themed or translated.
     m_gameLocationTextbox->SetValue(params.gameLocation);
+    m_gameTypeChoice->SetSelection(params.gameType == ABGameType::SKYRIM_LE ? 1 : 0);
     m_outputLocationTextbox->SetValue(params.outputLocation);
     m_modManagerChoice->SetSelection(params.modManager == ABModManagerType::MOD_ORGANIZER_2 ? 1 : 0);
     m_mo2InstancePathTextbox->SetValue(params.mo2InstancePath);
@@ -628,6 +658,7 @@ void LauncherWindow::applyLoadedParams(const ABParams& params)
     m_autoGenerateAllowlistCtrl->InsertItem(m_autoGenerateAllowlistCtrl->GetItemCount(), "");
 
     m_generatePbrSlotsCheckbox->SetValue(params.generatePbrSlots);
+    updateGameTypeFieldState();
 
     updateListColumnWidths();
 }

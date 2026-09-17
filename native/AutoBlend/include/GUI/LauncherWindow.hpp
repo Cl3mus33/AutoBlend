@@ -40,6 +40,7 @@ private:
     wxChoice* m_languageChoice;
     wxChoice* m_themeChoice;
     wxTextCtrl* m_gameLocationTextbox;
+    wxChoice* m_gameTypeChoice;
     wxTextCtrl* m_outputLocationTextbox;
     wxChoice* m_modManagerChoice;
     wxStaticText* m_mo2InstancePathLabel;
@@ -58,6 +59,8 @@ private:
     void onLanguageChanged(wxCommandEvent& event);
     void onThemeChanged(wxCommandEvent& event);
     void onBrowseGameLocation(wxCommandEvent& event);
+    void onGameTypeChanged(wxCommandEvent& event);
+    void updateGameTypeFieldState();
     void onBrowseOutputLocation(wxCommandEvent& event);
     void onBrowseMo2Instance(wxCommandEvent& event);
     void onModManagerChanged(wxCommandEvent& event);

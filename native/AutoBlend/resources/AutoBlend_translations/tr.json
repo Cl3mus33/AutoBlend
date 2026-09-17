@@ -19,6 +19,11 @@
       "label": "Oyun Konumu",
       "dialogTitle": "Oyun Konumunu Seç"
     },
+    "gameType": {
+      "label": "Oyun Türü",
+      "se": "Skyrim Special Edition",
+      "le": "Skyrim Legendary Edition"
+    },
     "outputLocation": {
       "label": "Çıktı Konumu",
       "dialogTitle": "Çıktı Konumunu Seç"

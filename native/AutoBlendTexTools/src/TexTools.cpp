@@ -36,7 +36,7 @@ auto getSharedD3D11Device() -> ID3D11Device*
 // turns a blend-edge diffuse into a standalone "statics" one (verified against Vanaheimr's own
 // hand-authored statics textures: identical RGB, only alpha differs). This mirrors texconv's own
 // `--swizzle rgb1`, minus the swizzle CLI's own file I/O.
-auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath, bool isPbr) -> int
+auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath, bool isPbr, bool isLe) -> int
 {
     TexMetadata srcMetadata {};
     ScratchImage srcImage;
@@ -82,7 +82,16 @@ auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath, bool isP
     // complex-material diffuse stays BC7 as before. Reported directly and confirmed against a real
     // PBR texture pack's own generated statics variant rendering wrong until this distinction
     // existed.
-    const DXGI_FORMAT targetFormat = isPbr ? DXGI_FORMAT_BC1_UNORM_SRGB : DXGI_FORMAT_BC7_UNORM;
+    //
+    // BC7 needs the DX10-extended DDS header (no legacy FourCC exists for it), which Legendary
+    // Edition's own engine has zero support for - PBR doesn't exist on LE at all (never reaches
+    // this path there), but the vanilla/complex-material case did, and every texture this generated
+    // on a real LE modlist came out unreadable in game (confirmed directly: DXGI_FORMAT_BC7_UNORM
+    // in the output, vs the legacy FourCC "DXT5" every real vanilla LE texture uses). BC3 is the
+    // direct legacy equivalent of BC7's normal use here (4 channels incl. alpha) and matches what
+    // LE's own textures already are, so this is a like-for-like swap, not a quality compromise
+    // specific to this feature.
+    const DXGI_FORMAT targetFormat = isPbr ? DXGI_FORMAT_BC1_UNORM_SRGB : isLe ? DXGI_FORMAT_BC3_UNORM : DXGI_FORMAT_BC7_UNORM;
 
     ScratchImage recompressed;
     HRESULT compressHr = E_FAIL;
@@ -125,7 +134,8 @@ auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath, bool isP
 
 /**
  * @brief Writes an opaque (alpha-stripped) copy of the DDS at srcPath to dstPath, recompressed to
- * BC1 sRGB when isPbr is nonzero, or BC7 otherwise - see stripAlphaToOpaque's own comment for why
+ * BC1 sRGB when isPbr is nonzero, BC3 when isLe is nonzero (Legendary Edition can't read BC7's
+ * DX10-extended DDS header at all), or BC7 otherwise - see stripAlphaToOpaque's own comment for why
  * this can't just "preserve the original format" the way it used to. Returns 0 on success,
  * non-zero on failure - never throws across the P/Invoke boundary, matching the same "nothing here
  * can escape" convention AutoBlend.NativeExport's own DNNE exports use for the opposite
@@ -138,14 +148,14 @@ auto stripAlphaToOpaque(const wchar_t* srcPath, const wchar_t* dstPath, bool isP
  * standalone outside MO2. Loading this as a library into the already-running (already-hooked)
  * process sidesteps that hook entirely, since no new process is ever created.
  */
-extern "C" __declspec(dllexport) int __stdcall ab_strip_alpha_to_opaque(const wchar_t* srcPath, const wchar_t* dstPath, int isPbr)
+extern "C" __declspec(dllexport) int __stdcall ab_strip_alpha_to_opaque(const wchar_t* srcPath, const wchar_t* dstPath, int isPbr, int isLe)
 {
     if (srcPath == nullptr || dstPath == nullptr) {
         return -1;
     }
 
     try {
-        return stripAlphaToOpaque(srcPath, dstPath, isPbr != 0);
+        return stripAlphaToOpaque(srcPath, dstPath, isPbr != 0, isLe != 0);
     } catch (...) {
         return -2;
     }

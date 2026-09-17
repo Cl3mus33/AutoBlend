@@ -1,3 +1,4 @@
+using Mutagen.Bethesda;
 using Mutagen.Bethesda.Plugins;
 
 namespace AutoBlend.Core.Scanning;
@@ -26,18 +27,24 @@ public sealed class Mo2LoadOrderMaterializer
     // confirmed missing here caused every Alternate Texture pointing at one of its own TextureSets
     // to fail resolution ("Could not resolve existing TextureSet..." warnings) even though the
     // referenced texture files themselves were found and auto-generated just fine, since file
-    // resolution and record resolution are entirely separate code paths.
-    // Shared with PatchOrchestrator's own non-MO2 active-plugin-list construction - the same six
-    // files are implicit there too, for the exact same reason.
-    internal static readonly string[] ImplicitBaseMasterFileNames =
+    // resolution and record resolution are entirely separate code paths. SE-only - Anniversary
+    // Edition/Creation Club content never shipped for Legendary Edition, so this must NOT be
+    // included there (an LE run otherwise reports it "listed but not found anywhere").
+    // Shared with PatchOrchestrator's own non-MO2 active-plugin-list construction - the same
+    // reasoning (and GameRelease gating) applies there too.
+    private static readonly string[] ImplicitBaseMasterFileNamesCommon =
     {
         "Skyrim.esm",
         "Update.esm",
         "Dawnguard.esm",
         "HearthFires.esm",
         "Dragonborn.esm",
-        "_ResourcePack.esl",
     };
+
+    internal static IEnumerable<string> ImplicitBaseMasterFileNames(GameRelease gameRelease) =>
+        gameRelease == GameRelease.SkyrimSE
+            ? ImplicitBaseMasterFileNamesCommon.Append("_ResourcePack.esl")
+            : ImplicitBaseMasterFileNamesCommon;
 
     public sealed class MaterializedLoadOrder : IDisposable
     {
@@ -63,7 +70,7 @@ public sealed class Mo2LoadOrderMaterializer
         }
     }
 
-    public static MaterializedLoadOrder Materialize(Mo2InstanceReader reader, string profileName, string vanillaDataFolder, List<string> warnings)
+    public static MaterializedLoadOrder Materialize(Mo2InstanceReader reader, string profileName, string vanillaDataFolder, List<string> warnings, GameRelease gameRelease)
     {
         var activePlugins = reader.ReadActivePlugins(profileName);
         var tempFolder = Path.Combine(Path.GetTempPath(), "AutoBlend_LoadOrder_" + Guid.NewGuid().ToString("N"));
@@ -72,7 +79,7 @@ public sealed class Mo2LoadOrderMaterializer
         // Base masters go first, in their fixed canonical order, and only once - plugins.txt
         // normally never lists them, but if a given setup unusually does, don't double them up.
         var alreadyListed = new HashSet<string>(activePlugins, StringComparer.OrdinalIgnoreCase);
-        var orderedPluginNames = ImplicitBaseMasterFileNames
+        var orderedPluginNames = ImplicitBaseMasterFileNames(gameRelease)
             .Where(name => !alreadyListed.Contains(name))
             .Concat(activePlugins)
             .ToList();

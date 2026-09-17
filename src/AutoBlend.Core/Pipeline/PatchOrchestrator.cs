@@ -96,7 +96,7 @@ public sealed class PatchOrchestrator
         // Mo2ModlistFileProbe further down.
         Report("Loading game environment...");
         using var materializedLoadOrder = mo2Reader is not null
-            ? Mo2LoadOrderMaterializer.Materialize(mo2Reader, _settings.Mo2ProfileName, dataFolder, warnings)
+            ? Mo2LoadOrderMaterializer.Materialize(mo2Reader, _settings.Mo2ProfileName, dataFolder, warnings, gameRelease)
             : null;
 
         var envDataFolder = materializedLoadOrder?.DataFolder ?? dataFolder;
@@ -148,7 +148,7 @@ public sealed class PatchOrchestrator
                     .Select(l => l.ModKey.FileName.String)
                     .ToList();
                 var alreadyListed = new HashSet<string>(activePluginNames, StringComparer.OrdinalIgnoreCase);
-                activeLoadOrder = Mo2LoadOrderMaterializer.ImplicitBaseMasterFileNames
+                activeLoadOrder = Mo2LoadOrderMaterializer.ImplicitBaseMasterFileNames(gameRelease)
                     .Where(name => !alreadyListed.Contains(name))
                     .Concat(activePluginNames)
                     .Select(name => ModKey.FromNameAndExtension(name))
@@ -218,7 +218,7 @@ public sealed class PatchOrchestrator
         MissingTextureGenerator? textureGenerator = null;
         if (_settings.AutoGenerateMissingStatics)
         {
-            textureGenerator = new MissingTextureGenerator(fileProbe, _settings.OutputLocation);
+            textureGenerator = new MissingTextureGenerator(fileProbe, _settings.OutputLocation, _settings.GameType == GameType.SkyrimLE);
         }
 
         var folderDetector = new LandscapeFolderDetector(
