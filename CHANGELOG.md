@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.5] - 2026-09-17
+
 ### Fixed
 - **Fixed the launcher window being taller than the screen on smaller displays** - same issue Snow
   Fixer's own identical layout hit, reported directly on Nexus: the dialog auto-sized itself to fit
