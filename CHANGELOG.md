@@ -5,6 +5,19 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.7] - 2026-09-19
+
+### Fixed
+- **MO2 Instance Path pointing at a folder that merely contains the instance no longer fails with a bare error** - reported on Nexus: with
+  `MO2 Instance Path` set to the MO2 folder (parent of the actual instance/base directory), the
+  MO2 Profile dropdown stayed empty, the run silently fell back to a profile named "Default", and
+  ended with "No modlist.txt found for profile...". If the given folder isn't an instance but exactly
+  one instance can be found inside it (a subfolder with profiles, or a global instance whose
+  base_directory lives there), it's now used automatically (and the profile list fills in); otherwise
+  the error explains what an instance folder is, lists the profiles/instances found, and the launcher
+  now asks you to pick an MO2 profile instead of running with none. The message is translated in all
+  languages.
+
 ## [1.2.6] - 2026-09-19
 
 ### Fixed

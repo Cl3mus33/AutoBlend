@@ -84,6 +84,10 @@
     "missingMo2Instance": {
       "message": "Veuillez sélectionner le dossier de votre instance Mod Organizer 2.",
       "title": "Instance MO2 manquante"
+    },
+    "missingMo2Profile": {
+      "message": "Aucun profil MO2 n'est sélectionné. Vérifiez que le chemin de l'instance MO2 pointe vers votre instance (le dossier contenant ModOrganizer.ini, ou celui qui contient vos mods et profils), puis choisissez un profil.",
+      "title": "Profil MO2 manquant"
     }
   },
   "progress": {

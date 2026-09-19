@@ -63,6 +63,7 @@ public sealed class Mo2InstanceReader : IDisposable
 
     public Mo2InstanceReader(string instancePath, string profileName, GameRelease gameRelease)
     {
+        instancePath = ResolveInstancePath(instancePath);
         InstancePath = instancePath;
         _gameRelease = gameRelease;
         DataRoot = ResolveDataRoot(instancePath);
@@ -74,11 +75,7 @@ public sealed class Mo2InstanceReader : IDisposable
         var modlistPath = Path.Combine(DataRoot, "profiles", profileName, "modlist.txt");
         if (!File.Exists(modlistPath))
         {
-            throw new FileNotFoundException(
-                $"No modlist.txt found for profile '{profileName}'. Checked: '{modlistPath}'. " +
-                $"MO2 Instance Path should be the folder MO2 itself calls the instance (containing ModOrganizer.ini) — " +
-                $"if that instance uses a custom base directory, it's read automatically from ModOrganizer.ini.",
-                modlistPath);
+            throw new FileNotFoundException(DescribeMissingModlist(instancePath, profileName, modlistPath), modlistPath);
         }
 
         // ParseEnabledMods reads the file top-to-bottom, exactly the order it's written in. Verified
@@ -383,6 +380,109 @@ public sealed class Mo2InstanceReader : IDisposable
     /// key when present and follow it; otherwise assume a portable instance where everything is
     /// co-located with ModOrganizer.ini.
     /// </summary>
+    /// <summary>
+    /// A user pointing "MO2 Instance Path" at a folder that merely CONTAINS their instance (the MO2
+    /// install folder, or the parent of a custom base directory) used to end in an empty profile
+    /// list and a bare "No modlist.txt found for profile 'Default'" - reported directly on Nexus.
+    /// If the given folder already is an instance (has ModOrganizer.ini or a profiles folder) it is
+    /// returned unchanged; otherwise, when exactly one instance can be found inside it (a direct
+    /// subfolder that looks like one, or a global instance under %LOCALAPPDATA%\ModOrganizer whose
+    /// base_directory lives inside it), that one is used. Anything ambiguous or unfound is returned
+    /// unchanged, so the caller's own error explains the situation.
+    /// </summary>
+    public static string ResolveInstancePath(string instancePath)
+    {
+        if (string.IsNullOrWhiteSpace(instancePath) || IsInstanceFolder(instancePath))
+        {
+            return instancePath;
+        }
+
+        var candidates = FindInstanceCandidates(instancePath);
+        return candidates.Count == 1 ? candidates[0] : instancePath;
+    }
+
+    private static bool IsInstanceFolder(string path) =>
+        File.Exists(Path.Combine(path, "ModOrganizer.ini")) || Directory.Exists(Path.Combine(path, "profiles"));
+
+    /// <summary>Every MO2 instance that can be found inside <paramref name="path"/> - see
+    /// <see cref="ResolveInstancePath"/>. Candidates that resolve to the same data root are merged,
+    /// preferring the one with its own ModOrganizer.ini (it also carries selected_profile).</summary>
+    public static IReadOnlyList<string> FindInstanceCandidates(string path)
+    {
+        var byDataRoot = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        void Add(string candidate)
+        {
+            var dataRoot = Path.GetFullPath(ResolveDataRoot(candidate)).TrimEnd('\\', '/');
+            if (!byDataRoot.TryGetValue(dataRoot, out var existing)
+                || (!File.Exists(Path.Combine(existing, "ModOrganizer.ini")) && File.Exists(Path.Combine(candidate, "ModOrganizer.ini"))))
+            {
+                byDataRoot[dataRoot] = candidate;
+            }
+        }
+
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                foreach (var child in Directory.EnumerateDirectories(path))
+                {
+                    if (IsInstanceFolder(child))
+                    {
+                        Add(child);
+                    }
+                }
+            }
+
+            var globalRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ModOrganizer");
+            var normalizedPath = Path.GetFullPath(path).TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
+            if (Directory.Exists(globalRoot))
+            {
+                foreach (var instance in Directory.EnumerateDirectories(globalRoot))
+                {
+                    if (!File.Exists(Path.Combine(instance, "ModOrganizer.ini")))
+                    {
+                        continue;
+                    }
+
+                    var dataRoot = Path.GetFullPath(ResolveDataRoot(instance)).TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
+                    if (dataRoot.StartsWith(normalizedPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Add(instance);
+                    }
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Unreadable folder / bad path: report whatever was found so far.
+        }
+
+        return byDataRoot.Values.ToList();
+    }
+
+    private static string DescribeMissingModlist(string instancePath, string profileName, string modlistPath)
+    {
+        var message = $"No modlist.txt found for MO2 profile '{profileName}' (looked for '{modlistPath}'). ";
+        var profiles = ListProfiles(instancePath);
+        if (profiles.Count > 0)
+        {
+            return message + $"Profiles found in this instance: {string.Join(", ", profiles)}. Pick one of them as the MO2 Profile.";
+        }
+
+        message += $"'{instancePath}' doesn't look like an MO2 instance (no profiles folder found). "
+            + "MO2 Instance Path should be the folder MO2 itself calls the instance - the one containing ModOrganizer.ini "
+            + "(for a global instance that's under %LOCALAPPDATA%\\ModOrganizer\\<instance name>; for a portable one, the MO2 folder itself). "
+            + "If that instance uses a custom base directory, it's read automatically from ModOrganizer.ini.";
+        var candidates = FindInstanceCandidates(instancePath);
+        if (candidates.Count > 1)
+        {
+            message += $" Several instances were found inside that folder, pick one: {string.Join("; ", candidates)}.";
+        }
+
+        return message;
+    }
+
     private static string ResolveDataRoot(string instancePath)
     {
         var iniPath = Path.Combine(instancePath, "ModOrganizer.ini");
@@ -420,6 +520,7 @@ public sealed class Mo2InstanceReader : IDisposable
     /// </summary>
     public static List<string> ListProfiles(string instancePath)
     {
+        instancePath = ResolveInstancePath(instancePath);
         var dataRoot = ResolveDataRoot(instancePath);
         var profilesRoot = Path.Combine(dataRoot, "profiles");
         if (!Directory.Exists(profilesRoot))
@@ -442,6 +543,7 @@ public sealed class Mo2InstanceReader : IDisposable
     /// </summary>
     public static bool TryDetectSelectedProfile(string instancePath, out string profileName)
     {
+        instancePath = ResolveInstancePath(instancePath);
         var iniPath = Path.Combine(instancePath, "ModOrganizer.ini");
         if (File.Exists(iniPath))
         {

@@ -84,6 +84,10 @@
     "missingMo2Instance": {
       "message": "Seleziona la cartella della tua istanza di Mod Organizer 2.",
       "title": "Istanza MO2 mancante"
+    },
+    "missingMo2Profile": {
+      "message": "Nessun profilo MO2 selezionato. Verifica che il percorso dell'istanza MO2 punti alla tua istanza (la cartella che contiene ModOrganizer.ini, o quella con mod e profili) e scegli un profilo.",
+      "title": "Profilo MO2 mancante"
     }
   },
   "progress": {

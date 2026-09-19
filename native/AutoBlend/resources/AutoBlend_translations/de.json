@@ -84,6 +84,10 @@
     "missingMo2Instance": {
       "message": "Bitte wähle deinen Mod-Organizer-2-Instanzordner aus.",
       "title": "MO2-Instanz fehlt"
+    },
+    "missingMo2Profile": {
+      "message": "Es ist kein MO2-Profil ausgewählt. Stellen Sie sicher, dass der MO2-Instanzpfad auf Ihre MO2-Instanz zeigt (der Ordner mit ModOrganizer.ini oder der Ordner mit Ihren Mods und Profilen), und wählen Sie dann ein Profil.",
+      "title": "MO2-Profil fehlt"
     }
   },
   "progress": {

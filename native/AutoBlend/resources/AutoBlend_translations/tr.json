@@ -84,6 +84,10 @@
     "missingMo2Instance": {
       "message": "Lütfen Mod Organizer 2 örneğinizin klasörünü seçin.",
       "title": "MO2 Örneği Eksik"
+    },
+    "missingMo2Profile": {
+      "message": "Hiçbir MO2 profili seçilmedi. MO2 Instance Path'in MO2 örneğinizi gösterdiğinden emin olun (ModOrganizer.ini dosyasını içeren klasör veya mod ve profillerinizin bulunduğu klasör), ardından bir profil seçin.",
+      "title": "MO2 Profili Eksik"
     }
   },
   "progress": {

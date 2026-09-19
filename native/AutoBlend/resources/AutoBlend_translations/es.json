@@ -84,6 +84,10 @@
     "missingMo2Instance": {
       "message": "Selecciona la carpeta de tu instancia de Mod Organizer 2.",
       "title": "Falta la instancia de MO2"
+    },
+    "missingMo2Profile": {
+      "message": "No hay ningún perfil de MO2 seleccionado. Comprueba que la ruta de la instancia de MO2 apunte a tu instancia (la carpeta que contiene ModOrganizer.ini, o la que contiene tus mods y perfiles) y elige un perfil.",
+      "title": "Falta el perfil de MO2"
     }
   },
   "progress": {

@@ -742,5 +742,14 @@ void LauncherWindow::onOkButtonPressed([[maybe_unused]] wxCommandEvent& event)
         return;
     }
 
+    if (m_modManagerChoice->GetSelection() == 1 && m_mo2ProfileChoice->GetSelection() == wxNOT_FOUND) {
+        wxMessageBox(ABTr("launcher.missingMo2Profile.message",
+                         "No MO2 profile is selected. Make sure the MO2 Instance Path points to your MO2 instance "
+                         "(the folder containing ModOrganizer.ini, or the folder that holds your mods and profiles), "
+                         "then pick a profile."),
+            ABTr("launcher.missingMo2Profile.title", "Missing MO2 Profile"), wxOK | wxICON_WARNING, this);
+        return;
+    }
+
     EndModal(wxID_OK);
 }
