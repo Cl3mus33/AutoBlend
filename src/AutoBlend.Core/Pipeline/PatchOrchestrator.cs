@@ -325,7 +325,7 @@ public sealed class PatchOrchestrator
 
         Report($"{recordsScanned} Static/MoveableStatic record(s) scanned, {candidatesByMesh.Count} distinct mesh(es) not blacklisted.");
 
-        var tempDir = Path.Combine(Path.GetTempPath(), "AutoBlend_" + Guid.NewGuid().ToString("N"));
+        var tempDir = Path.Combine(NifIo.GetAsciiTempRoot(), "AutoBlend_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
 
         var meshesPatchedInPlace = 0;
@@ -407,7 +407,7 @@ public sealed class PatchOrchestrator
                 // this whole loop.
                 var alphaShapes = new Dictionary<string, AlphaShape>(StringComparer.OrdinalIgnoreCase);
                 using var readNif = new NifFile();
-                if (readNif.Load(extractedPath) != 0)
+                if (NifIo.Load(readNif, extractedPath) != 0)
                 {
                     AddWarning($"nifly failed to load, skipped: {meshPath}");
                     return;

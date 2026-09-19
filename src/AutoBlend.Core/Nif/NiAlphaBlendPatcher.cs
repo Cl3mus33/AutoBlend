@@ -130,7 +130,7 @@ public sealed class NiAlphaBlendPatcher
             sortBlocks = false,
         };
 
-        var saveResult = nifFile.Save(destPath, saveOptions);
+        var saveResult = NifIo.Save(nifFile, destPath, saveOptions);
         if (saveResult != 0)
         {
             throw new InvalidOperationException($"nifly failed to save '{destPath}' (error {saveResult}).");

@@ -5,6 +5,17 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.6] - 2026-09-19
+
+### Fixed
+- **Fixed AutoBlend failing on any path containing non-ASCII characters (e.g. Cyrillic)** - reported on Nexus (Cyrillic paths).
+  Reproduced directly: nifly can't open or write a NIF whose path has any non-ASCII character (its
+  Windows path handling goes through a narrow-string API), so every mesh failed to load whenever the
+  temp folder (a Cyrillic/accented Windows user name puts `%TEMP%` itself out of reach) or the output
+  folder was non-ASCII. All NIF reads/writes now go through `NifIo`, which copies through a
+  guaranteed-ASCII temp file when needed; where a temp folder is used, it falls back to
+  `C:\ProgramData\AutoBlend\tmp` if the normal one isn't ASCII-only.
+
 ## [1.2.5] - 2026-09-17
 
 ### Fixed
