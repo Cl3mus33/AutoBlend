@@ -5,6 +5,16 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.8] - 2026-09-20
+
+### Fixed
+- **One empty or corrupted plugin in the load order no longer aborts the whole run** - reported on Nexus
+  (Snow Fixer, `Merethic Grass Catche.esp`): Mutagen threw "Could not read enough data to parse a Mod
+  Header from stream. Position: 0. 0 remaining < 24 expected." while loading the game environment, so
+  nothing was scanned at all. Reproduced directly with a 0-byte plugin in a synthetic MO2 instance.
+  AutoBlend now skips the unreadable plugin, notes which one in the run's diagnostics/warnings, and
+  carries on with the rest of the load order.
+
 ## [1.2.7] - 2026-09-19
 
 ### Fixed

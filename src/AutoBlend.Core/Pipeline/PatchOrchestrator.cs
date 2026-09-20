@@ -162,12 +162,8 @@ public sealed class PatchOrchestrator
             }
         }
 
-        var envBuilder = GameEnvironment.Typical.Builder(gameRelease).WithTargetDataFolder(envDataFolder);
-        using var env = materializedLoadOrder is not null
-            ? envBuilder.WithLoadOrder(materializedLoadOrder.LoadOrder.ToArray()).Build()
-            : activeLoadOrder is not null
-                ? envBuilder.WithLoadOrder(activeLoadOrder).Build()
-                : envBuilder.Build();
+        using var env = BuildEnvironment(gameRelease, envDataFolder,
+            materializedLoadOrder is not null ? materializedLoadOrder.LoadOrder.ToArray() : activeLoadOrder, warnings);
 
         using IGameFileProbe fileProbe = mo2Reader is not null
             ? new Mo2ModlistFileProbe(mo2Reader, dataFolder, _settings.GameType)
@@ -926,6 +922,46 @@ public sealed class PatchOrchestrator
         catch
         {
             // best-effort cleanup of the temp extraction folder
+        }
+    }
+
+    // Builds the Mutagen environment; when an explicit load order was given, a plugin Mutagen can't
+    // even open (typically empty/corrupted - see UnreadablePluginFinder) is dropped with a warning
+    // and the build retried, instead of one bad file aborting the whole run.
+    private static IGameEnvironment BuildEnvironment(GameRelease gameRelease, string dataFolder, ModKey[]? loadOrder, List<string> warnings)
+    {
+        var remaining = loadOrder?.ToList();
+        if (remaining is not null)
+        {
+            // This environment flavor doesn't tag a header parse failure with the plugin it came from
+            // (unlike SnowFixer's, which gets a RecordException carrying it), so the obviously
+            // unreadable ones - empty/truncated files - are weeded out up front instead.
+            foreach (var modKey in remaining.ToList())
+            {
+                var pluginPath = Path.Combine(dataFolder, modKey.FileName.String);
+                if (File.Exists(pluginPath) && !UnreadablePluginFinder.HasReadableHeader(pluginPath))
+                {
+                    remaining.Remove(modKey);
+                    warnings.Add($"Plugin '{modKey.FileName}' could not be read and was skipped (file is empty or truncated). "
+                        + "It is probably corrupted - consider reinstalling or removing that mod.");
+                }
+            }
+        }
+
+        while (true)
+        {
+            var builder = GameEnvironment.Typical.Builder(gameRelease).WithTargetDataFolder(dataFolder);
+            try
+            {
+                return remaining is null ? builder.Build() : builder.WithLoadOrder(remaining.ToArray()).Build();
+            }
+            catch (Exception ex) when (remaining is not null
+                && UnreadablePluginFinder.TryFind(ex, out var unreadable, out var reason)
+                && remaining.Remove(unreadable))
+            {
+                warnings.Add($"Plugin '{unreadable.FileName}' could not be read and was skipped ({reason}). "
+                    + "It is probably empty or corrupted - consider reinstalling or removing that mod.");
+            }
         }
     }
 
