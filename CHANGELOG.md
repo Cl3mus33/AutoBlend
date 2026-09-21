@@ -5,6 +5,18 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.9] - 2026-09-21
+
+### Fixed
+- **Fixed the mouse wheel changing dropdown values instead of scrolling the launcher** - reported on Nexus
+  ("Generate PBR slots" greyed out after updating; "the mouse wheel on this interface is so hard to use").
+  Since the General tab became scrollable, a dropdown under the cursor swallowed the wheel and changed
+  its own selection - reproduced directly: one notch over Game Type flipped Special Edition to Legendary
+  Edition, which greys out and unchecks "Generate PBR slots".
+  Dropdowns in the General tab now hand the wheel to the panel (changing a value still works by
+  clicking the dropdown), and each notch scrolls further.
+
+
 ## [1.2.8] - 2026-09-20
 
 ### Fixed
