@@ -5,6 +5,22 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.10] - 2026-09-28
+
+### Fixed
+- **The MO2 Profile dropdown stayed empty - and the run itself failed with "No modlist.txt found" - for
+  instances whose folders were moved individually in MO2** - same root cause as a report against Snow
+  Fixer (a global instance under `%LOCALAPPDATA%\ModOrganizer`, mods and profiles on another drive).
+  Only `base_directory` was read from `ModOrganizer.ini`, but MO2 (Settings > Paths) lets the mods,
+  profiles and overwrite folders each be moved on their own - often with no `base_directory` at all - so
+  the profiles folder was looked for next to the ini and nothing was found. `mod_directory`,
+  `profiles_directory` and `overwrite_directory` are now read too, and values are cleaned the way Qt
+  stores them (`@ByteArray(...)` wrapper, surrounding quotes, doubled backslashes, `%BASE_DIR%`).
+  Reproduced on synthetic instances first: 4 of 7 layouts gave an empty list and a failing run before,
+  all 7 work now, and a normal `base_directory`-only instance behaves exactly as before.
+- When no profile is found, the error now says which folder was searched and which `ModOrganizer.ini`
+  keys to check.
+
 ## [1.2.9] - 2026-09-21
 
 ### Fixed

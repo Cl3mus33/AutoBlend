@@ -31,6 +31,10 @@ public sealed class Mo2InstanceReader : IDisposable
     public string DataRoot { get; }
 
     public string ModsRoot { get; }
+
+    /// <summary>Where the profile folders live - <c>profiles_directory</c> from ModOrganizer.ini when
+    /// MO2's own Settings > Paths moved it, otherwise <c>&lt;base&gt;\profiles</c>.</summary>
+    public string ProfilesRoot { get; }
     public string? OverwriteFolder { get; }
     public IReadOnlyList<string> EnabledModFoldersHighToLowPriority { get; }
 
@@ -66,13 +70,14 @@ public sealed class Mo2InstanceReader : IDisposable
         instancePath = ResolveInstancePath(instancePath);
         InstancePath = instancePath;
         _gameRelease = gameRelease;
-        DataRoot = ResolveDataRoot(instancePath);
-        ModsRoot = Path.Combine(DataRoot, "mods");
+        var paths = ResolvePaths(instancePath);
+        DataRoot = paths.Base;
+        ModsRoot = paths.Mods;
+        ProfilesRoot = paths.Profiles;
 
-        var overwrite = Path.Combine(DataRoot, "overwrite");
-        OverwriteFolder = Directory.Exists(overwrite) ? overwrite : null;
+        OverwriteFolder = Directory.Exists(paths.Overwrite) ? paths.Overwrite : null;
 
-        var modlistPath = Path.Combine(DataRoot, "profiles", profileName, "modlist.txt");
+        var modlistPath = Path.Combine(ProfilesRoot, profileName, "modlist.txt");
         if (!File.Exists(modlistPath))
         {
             throw new FileNotFoundException(DescribeMissingModlist(instancePath, profileName, modlistPath), modlistPath);
@@ -90,7 +95,7 @@ public sealed class Mo2InstanceReader : IDisposable
             .ToList();
     }
 
-    public string ProfilePath(string profileName) => Path.Combine(DataRoot, "profiles", profileName);
+    public string ProfilePath(string profileName) => Path.Combine(ProfilesRoot, profileName);
 
     /// <summary>Active plugin filenames (esp/esm/esl) from plugins.txt, in load-order — top to bottom of the file.</summary>
     public IReadOnlyList<string> ReadActivePlugins(string profileName)
@@ -470,10 +475,12 @@ public sealed class Mo2InstanceReader : IDisposable
             return message + $"Profiles found in this instance: {string.Join(", ", profiles)}. Pick one of them as the MO2 Profile.";
         }
 
-        message += $"'{instancePath}' doesn't look like an MO2 instance (no profiles folder found). "
+        var searched = ResolvePaths(instancePath).Profiles;
+        message += $"'{instancePath}' doesn't look like an MO2 instance (no profiles folder found at '{searched}'). "
             + "MO2 Instance Path should be the folder MO2 itself calls the instance - the one containing ModOrganizer.ini "
             + "(for a global instance that's under %LOCALAPPDATA%\\ModOrganizer\\<instance name>; for a portable one, the MO2 folder itself). "
-            + "If that instance uses a custom base directory, it's read automatically from ModOrganizer.ini.";
+            + "If that instance moved its base, mods or profiles directory (MO2 Settings > Paths), those are read automatically from ModOrganizer.ini "
+            + "- if the folder above is wrong, check base_directory / profiles_directory in that file.";
         var candidates = FindInstanceCandidates(instancePath);
         if (candidates.Count > 1)
         {
@@ -483,30 +490,89 @@ public sealed class Mo2InstanceReader : IDisposable
         return message;
     }
 
-    private static string ResolveDataRoot(string instancePath)
+    private static string ResolveDataRoot(string instancePath) => ResolvePaths(instancePath).Base;
+
+    /// <summary>The four folders MO2's own Settings > Paths lets a user place independently.</summary>
+    private sealed record Mo2Paths(string Base, string Mods, string Profiles, string Overwrite);
+
+    // Reported directly on Nexus: a global instance (ModOrganizer.ini under %LOCALAPPDATA%) whose mods and
+    // profiles live on another drive showed an EMPTY MO2 Profile dropdown. Only base_directory used to be
+    // read, but MO2 lets each folder be moved on its own (mod_directory, profiles_directory,
+    // overwrite_directory), often with NO base_directory at all - so the profiles folder was looked for
+    // next to the ini, found nothing, and the picker stayed empty with no explanation.
+    private static Mo2Paths ResolvePaths(string instancePath)
     {
-        var iniPath = Path.Combine(instancePath, "ModOrganizer.ini");
+        var values = ReadIniPathValues(Path.Combine(instancePath, "ModOrganizer.ini"));
+
+        // base_directory itself can't reference %BASE_DIR% (nothing to expand it against).
+        var baseDirectory = values.TryGetValue("base_directory", out var rawBase)
+            ? CleanIniPath(rawBase, instancePath)
+            : instancePath;
+        if (string.IsNullOrWhiteSpace(baseDirectory))
+        {
+            baseDirectory = instancePath;
+        }
+
+        string Resolve(string key, string defaultSubfolder) =>
+            values.TryGetValue(key, out var raw) && !string.IsNullOrWhiteSpace(CleanIniPath(raw, baseDirectory))
+                ? CleanIniPath(raw, baseDirectory)
+                : Path.Combine(baseDirectory, defaultSubfolder);
+
+        return new Mo2Paths(
+            baseDirectory,
+            Resolve("mod_directory", "mods"),
+            Resolve("profiles_directory", "profiles"),
+            Resolve("overwrite_directory", "overwrite"));
+    }
+
+    private static readonly string[] PathKeys = { "base_directory", "mod_directory", "profiles_directory", "overwrite_directory" };
+
+    private static Dictionary<string, string> ReadIniPathValues(string iniPath)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (!File.Exists(iniPath))
         {
-            return instancePath;
+            return result;
         }
 
         foreach (var rawLine in File.ReadAllLines(iniPath))
         {
             var line = rawLine.Trim();
-            if (!line.StartsWith("base_directory=", StringComparison.OrdinalIgnoreCase))
+            foreach (var key in PathKeys)
             {
-                continue;
-            }
-
-            var value = line["base_directory=".Length..].Trim();
-            if (!string.IsNullOrEmpty(value))
-            {
-                return value;
+                if (line.StartsWith(key + "=", StringComparison.OrdinalIgnoreCase))
+                {
+                    result[key] = line[(key.Length + 1)..].Trim();
+                }
             }
         }
 
-        return instancePath;
+        return result;
+    }
+
+    // What Qt's QSettings can leave around a stored path: an "@ByteArray(...)" wrapper, surrounding
+    // double quotes (added when the value has commas etc.), backslashes doubled as "\\", and MO2's own
+    // "%BASE_DIR%" token. A value that isn't rooted is taken relative to the base directory.
+    private static string CleanIniPath(string raw, string baseDirectory)
+    {
+        var value = raw.Trim();
+        if (value.StartsWith("@ByteArray(", StringComparison.OrdinalIgnoreCase) && value.EndsWith(')'))
+        {
+            value = value["@ByteArray(".Length..^1].Trim();
+        }
+
+        if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
+        {
+            value = value[1..^1];
+        }
+
+        value = value.Replace("\\\\", "\\").Replace("%BASE_DIR%", baseDirectory, StringComparison.OrdinalIgnoreCase).Trim();
+        if (value.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        return Path.IsPathRooted(value) ? value : Path.Combine(baseDirectory, value);
     }
 
     /// <summary>
@@ -521,8 +587,7 @@ public sealed class Mo2InstanceReader : IDisposable
     public static List<string> ListProfiles(string instancePath)
     {
         instancePath = ResolveInstancePath(instancePath);
-        var dataRoot = ResolveDataRoot(instancePath);
-        var profilesRoot = Path.Combine(dataRoot, "profiles");
+        var profilesRoot = ResolvePaths(instancePath).Profiles;
         if (!Directory.Exists(profilesRoot))
         {
             return new List<string>();
