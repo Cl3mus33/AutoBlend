@@ -5,6 +5,36 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.11] - 2026-10-02
+
+### Fixed
+- **Very dark, shiny rock/mountain meshes - and PG Patcher ignoring the json values of the
+  PBRNifPatcher folders shipped by PBR mods - when PG Patcher runs after AutoBlend.** Reported on Nexus
+  (synax1337, Vanaheimr Landscapes AIO + Nature of the Wildlands). Root-caused from PGPatcher's own trace
+  log: the TextureSets AutoBlend created carried TruePBR (`pbr\`) paths. PG treats a texture already
+  under `pbr\` as "already converted" ("Winning Match: Default"): it never applies the json values of
+  any PBRNifPatcher config to it and never sets the shape's PBR flag, so the PBR textures were rendered
+  by the legacy shader. AutoBlend's derived TextureSets now carry only the vanilla-looking "blend"
+  diffuse and the source's non-PBR normal/height/mask - what PG matches its TruePBR config against, so it
+  converts, applies the json values and flags the shape itself. When a PBR pack overrides the source
+  TextureSet, the non-PBR version further down the override chain is the one derived from.
+  Measured on a real load order: 77 of 84 texture paths in the generated plugin were under `pbr\`
+  before, 0 now. The generated textures, the PBRNifPatcher json and the number of Alternate Textures /
+  TextureSets generated (698 / 24) are unchanged.
+
+### Changed
+- **No more `<mesh>_blend.nif` copies.** A mesh shared with records the blacklist excludes (ice, frozen,
+  cave, ...) used to be copied under a new name for the in-scope records only. It is now patched at its
+  own vanilla path instead - the file extracted is the load-order winner (ERM, SMIM, vanilla, ...) and
+  AutoBlend Output loads after it - so PG Patcher always finds the mesh under the name it expects. The
+  excluded records share the alpha-test-to-blend flip (their textures are untouched); only the in-scope
+  records get an Alternate Texture, as before. Measured on a real load order: 156 meshes patched at their
+  vanilla path (138 before + the 18 former copies), same 698 Alternate Textures / 24 TextureSets.
+
+### Removed
+- The `PBRTextureSets` json written next to each derived TextureSet: it described PBR data on
+  TextureSets that no longer carry any, PG creates its own PBR TextureSets.
+
 ## [1.2.10] - 2026-09-28
 
 ### Fixed

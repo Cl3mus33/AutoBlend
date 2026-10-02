@@ -58,27 +58,49 @@ public sealed class DerivedTextureSetFactory
             .Replace("{Type}", detection.Rule.TypeLabel)
             .Replace("{Name}", effectiveSourceName));
 
+        // Deliberately carries NO TruePBR ("pbr\\") path - not detection's own PBR Normal/Height/RMAOS, and
+        // not whatever a PBR pack's TextureSet override put in the source either. PG Patcher is the one
+        // that turns a shape into PBR: it matches its TruePBR config (including the PBRNifPatcher json
+        // AutoBlend writes for the "blend" textures, and the ones shipped by PBR mods) against the
+        // VANILLA-looking diffuse, applies that json's values and sets the shape's PBR flag. A TextureSet
+        // already pointing at "pbr\\" assets is treated by PG as "already converted" (verified in its trace
+        // log: "Winning Match: Default"): none of the json values get applied and no shape ever gets
+        // flagged, so the PBR textures end up rendered by the legacy shader - dark and shiny.
+        // The vanilla-looking "blend" diffuse is a real generated file (see MissingTextureGenerator), so
+        // without PG the record still renders correctly as an ordinary non-PBR blend.
         var derived = new TextureSet(_patchMod, derivedName)
         {
             // A freshly constructed TextureSet does not pre-populate its AssetLink slots - each
             // one must be assigned a new instance rather than mutated via .GivenPath on a
             // possibly-null existing reference.
-            Diffuse = ToAssetLink(detection.DerivedDiffusePath),
-            NormalOrGloss = ToAssetLink(detection.PbrNormalPath ?? source.NormalOrGloss),
-            // Height/EnvironmentMaskOrSubsurfaceTint previously ONLY ever came from PBR detection,
-            // with no fallback to the source TextureSet's own values the way NormalOrGloss already
-            // had - silently dropping both whenever generatePbrSlots was off or no PBR sibling was
-            // found. Reported as purple/broken textures downstream of a complex-material patcher:
-            // verified directly that even vanilla Skyrim's own "Landscape\Dirt02.dds" TXST record
-            // already populates both (Dirt02_p.dds/Dirt02_m.dds - complex material shipped in the
-            // base game itself), so this dropped real, commonly-populated data on almost every
-            // derived TextureSet, not just PBR/complex-material texture packs specifically.
-            Height = ToAssetLink(detection.PbrHeightPath ?? source.Height),
-            EnvironmentMaskOrSubsurfaceTint = ToAssetLink(detection.PbrRmaosPath ?? source.EnvironmentMaskOrSubsurfaceTint),
+            Diffuse = ToAssetLink(detection.VanillaDerivedDiffusePath),
+            // Normal/Height/EnvironmentMaskOrSubsurfaceTint come from the source TextureSet's own
+            // (non-PBR) values - vanilla's own "Dirt02_p"/"Dirt02_m" complex material is real,
+            // commonly-populated data on almost every vanilla TXST; dropping it showed up as
+            // purple/broken textures downstream of a complex-material patcher.
+            NormalOrGloss = ToAssetLink(NonPbr(source.NormalOrGloss)),
+            Height = ToAssetLink(NonPbr(source.Height)),
+            EnvironmentMaskOrSubsurfaceTint = ToAssetLink(NonPbr(source.EnvironmentMaskOrSubsurfaceTint)),
         };
 
         _patchMod.TextureSets.Add(derived);
         return derived;
+    }
+
+    /// <summary>Null for a path under the TruePBR "pbr\\" folder (see the comment on the TextureSet built in
+    /// CreateDerived), otherwise the path unchanged.</summary>
+    private static string? NonPbr(string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return path;
+        }
+
+        var p = path.Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
+        return p.StartsWith("pbr" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || p.StartsWith("textures" + Path.DirectorySeparatorChar + "pbr" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : path;
     }
 
     /// <summary>

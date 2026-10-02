@@ -65,18 +65,4 @@ public sealed class MeshUsageIndex
         var duplicateFor = usages.Where(u => !u.IsBlacklisted).Select(u => u.RecordFormKey).ToList();
         return new MeshPatchPlan(meshPath, PatchInPlace: false, DuplicateForRecords: duplicateFor);
     }
-
-    /// <summary>
-    /// <paramref name="variantIndex"/> distinguishes multiple duplicates of the same mesh (e.g. one
-    /// mesh can need one duplicate per distinct set of records that share a physical alpha/diffuse
-    /// treatment) - 0 keeps the original "_blend" suffix, higher indices get "_blend2", "_blend3", …
-    /// </summary>
-    public static string BuildDuplicateMeshPath(string originalMeshPath, int variantIndex = 0)
-    {
-        var directory = Path.GetDirectoryName(originalMeshPath) ?? string.Empty;
-        var fileNameNoExt = Path.GetFileNameWithoutExtension(originalMeshPath);
-        var extension = Path.GetExtension(originalMeshPath);
-        var suffix = variantIndex <= 0 ? "_blend" : $"_blend{variantIndex + 1}";
-        return Path.Combine(directory, $"{fileNameNoExt}{suffix}{extension}");
-    }
 }

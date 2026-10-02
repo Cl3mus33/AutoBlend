@@ -532,37 +532,22 @@ public sealed class PatchOrchestrator
                         : null;
                 }
 
-                string outputMeshPath;
-                string? duplicateRelPath = null;
-                if (plan.PatchInPlace)
-                {
-                    outputMeshPath = Path.Combine(_settings.OutputLocation, meshRelativeToData);
-                }
-                else
-                {
-                    duplicateRelPath = MeshUsageIndex.BuildDuplicateMeshPath(meshPath, 0);
-                    outputMeshPath = Path.Combine(_settings.OutputLocation, "meshes", duplicateRelPath);
-                }
+                // The mesh is patched at its own (vanilla) path, whatever plan says: the version extracted
+                // above is the load-order winner (ERM, SMIM, ... or vanilla), and AutoBlend Output loads
+                // after it, so the patched file simply replaces it - no renamed "_blend" copy for PG Patcher
+                // to trip over. A mesh shared with records the blacklist excludes (ice, frozen, cave, ...)
+                // used to get such a copy, because the alpha test -> blend flip is mesh-wide and would reach
+                // those excluded records too; they now share the flip (their own textures are untouched,
+                // and only the in-scope records get an Alternate Texture - those are per record).
+                var outputMeshPath = Path.Combine(_settings.OutputLocation, meshRelativeToData);
+                IEnumerable<FormKey> recordsToAssign = plan.PatchInPlace ? perRecordTreatment.Keys : plan.DuplicateForRecords;
 
                 var patcher = new NiAlphaBlendPatcher();
                 var patchResult = patcher.Patch(readNif, extractedPath, outputMeshPath, alphaConversionByShapeName);
                 if (patchResult is not null)
                 {
-                    if (duplicateRelPath is not null)
-                    {
-                        Interlocked.Increment(ref meshesDuplicated);
-                    }
-                    else
-                    {
-                        Interlocked.Increment(ref meshesPatchedInPlace);
-                    }
+                    Interlocked.Increment(ref meshesPatchedInPlace);
                 }
-
-                // Patched in place: every candidate record benefits (nothing was blacklisted-mixed,
-                // or plan.PatchInPlace wouldn't be true). Duplicated: only the specific in-scope
-                // records MeshUsageIndex already identified get redirected - a blacklisted record
-                // sharing this same mesh keeps pointing at the untouched original.
-                var recordsToAssign = plan.PatchInPlace ? (IEnumerable<FormKey>)perRecordTreatment.Keys : plan.DuplicateForRecords;
 
                 // Everything from here down touches patchMod/derivedTxstCache/altTexAssigned - real,
                 // shared Mutagen mod state that isn't safe for concurrent mutation - so it's the one
@@ -578,29 +563,17 @@ public sealed class PatchOrchestrator
                         continue;
                     }
 
-                    Model? model = null;
-                    if (duplicateRelPath is not null)
-                    {
-                        model = GetOrCreateOverrideModel(formKey, recordKinds[formKey], patchMod, env, AddWarning);
-                        if (model is null)
-                        {
-                            continue;
-                        }
-
-                        model.File.GivenPath = duplicateRelPath;
-                    }
-
                     var hasAnyDerived = treatment.Values.Any(t => t.Kind is ShapeTreatmentKind.BaseDerived or ShapeTreatmentKind.AltTexDerived);
                     if (!hasAnyDerived)
                     {
-                        // Benefits purely from the physical mesh (shared path or duplicate) -
+                        // Benefits purely from the patched physical mesh -
                         // nothing needs to change at the ESP level for this record. Also covers a
                         // record whose only treatment is ForcedBlend (a mod-provided override),
                         // which never gets its own Alternate Texture - see the shape loop below.
                         continue;
                     }
 
-                    model ??= GetOrCreateOverrideModel(formKey, recordKinds[formKey], patchMod, env, AddWarning);
+                    var model = GetOrCreateOverrideModel(formKey, recordKinds[formKey], patchMod, env, AddWarning);
                     if (model is null)
                     {
                         continue;
@@ -655,16 +628,6 @@ public sealed class PatchOrchestrator
                                 AddWarning($"Could not create derived TextureSet for '{t.Source!.SourceName}' "
                                     + $"({t.Detection!.Rule.FolderName}): {ex.Message} - left untouched.");
                                 derivedTxst = null;
-                            }
-
-                            if (derivedTxst is not null && t.Detection!.PbrNormalPath is not null)
-                            {
-                                // Community Shaders' own PBR material config for the new TXST
-                                // record (see MissingTextureGenerator.TryMirrorPbrTextureSetJson) -
-                                // only meaningful once PBR generation actually resolved a sibling
-                                // for this texture; a plain statics/blend derivation with no PBR
-                                // data has nothing worth describing here.
-                                textureGenerator?.TryMirrorPbrTextureSetJson(t.Source!.SourceName, derivedTxst.EditorID!);
                             }
 
                             derivedTxstCache[cacheKey] = derivedTxst;
@@ -832,7 +795,8 @@ public sealed class PatchOrchestrator
 
             if (existingAltTex is not null)
             {
-                if (env.LinkCache.TryResolve<ITextureSetGetter>(existingAltTex.NewTexture.FormKey, out var existingTxst))
+                var existingTxst = ResolveNonPbrTextureSet(env, existingAltTex.NewTexture.FormKey);
+                if (existingTxst is not null)
                 {
                     var source = SourceTexturePaths.FromTextureSet(existingTxst);
                     var detection = !string.IsNullOrEmpty(source.Diffuse) ? folderDetector.Detect(source.Diffuse) : null;
@@ -860,7 +824,7 @@ public sealed class PatchOrchestrator
                 // mesh anyway (every BaseDerived shape gets a "_blend" physical copy) only risks
                 // breaking a downstream tool that expects to still find/patch the ORIGINAL mesh
                 // reference - reported directly by a user running PGPatcher after AutoBlend, where
-                // AutoBlend's own renamed duplicate was no longer recognized as patchable and ended
+                // AutoBlend's own renamed duplicate (no longer made) was not recognized as patchable and ended
                 // up missing whatever PGPatcher would have added. Leaving it Untouched here means
                 // the record keeps pointing at whatever mesh it already had - unchanged.
                 var alreadyDone = alphaShape.AlreadyAlphaBlended
@@ -880,6 +844,41 @@ public sealed class PatchOrchestrator
         }
 
         return result;
+    }
+
+    // A TruePBR pack very often overrides the vanilla TXST records themselves with "textures\pbr\\" paths.
+    // What AutoBlend derives from must be the vanilla-looking version (PG Patcher is what makes things PBR -
+    // see DerivedTextureSetFactory), so this returns the first TextureSet in the override chain (winning
+    // first) whose diffuse is not under "pbr\\"; a retexture mod's non-PBR override is still the winning
+    // record itself. Falls back to the winning record when the whole chain is PBR.
+    private static ITextureSetGetter? ResolveNonPbrTextureSet(IGameEnvironment env, FormKey formKey)
+    {
+        // Walked mod by mod, highest priority first: this environment is the untyped flavor, whose
+        // LinkCache can't enumerate a record's whole override chain.
+        ITextureSetGetter? winning = null;
+        foreach (var listing in env.LoadOrder.PriorityOrder)
+        {
+            if (listing.Mod is not ISkyrimModGetter mod || !mod.TextureSets.TryGetValue(formKey, out var record))
+            {
+                continue;
+            }
+
+            winning ??= record;
+            var diffuse = record.Diffuse?.GivenPath;
+            if (!string.IsNullOrEmpty(diffuse) && !IsUnderPbrFolder(diffuse))
+            {
+                return record;
+            }
+        }
+
+        return winning;
+    }
+
+    private static bool IsUnderPbrFolder(string path)
+    {
+        var p = path.Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
+        return p.StartsWith("pbr" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || p.StartsWith("textures" + Path.DirectorySeparatorChar + "pbr" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     private static Model? GetOrCreateOverrideModel(FormKey recordFormKey, RecordKind kind, SkyrimMod patchMod, IGameEnvironment env, Action<string> addWarning)
