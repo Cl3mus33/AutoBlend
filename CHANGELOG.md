@@ -5,6 +5,15 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.12] - 2026-10-03
+
+### Fixed
+- **The `PBRTextureSets` json is written again for every derived TextureSet.** 1.2.11 dropped it by
+  mistake: Community Shaders reads it (by TextureSet EditorID) to know which PBR values apply to each
+  TextureSet, so without it the derived TextureSets lost their material settings. It carries no texture
+  path, so it does not bring back the `pbr\` paths removed in 1.2.11 - PG Patcher still does the PBR
+  conversion of the meshes itself. Same json as before 1.2.11 (21 files on the test load order).
+
 ## [1.2.11] - 2026-10-02
 
 ### Fixed

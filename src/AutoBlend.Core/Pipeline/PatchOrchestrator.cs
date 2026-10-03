@@ -630,6 +630,17 @@ public sealed class PatchOrchestrator
                                 derivedTxst = null;
                             }
 
+                            if (derivedTxst is not null && t.Detection!.PbrNormalPath is not null)
+                            {
+                                // Community Shaders' own PBR material config for the new TXST
+                                // record (see MissingTextureGenerator.TryMirrorPbrTextureSetJson) -
+                                // keyed by the TextureSet EditorID only, so it carries no pbr\ path
+                                // into the plugin or the mesh and leaves the PBR conversion of the
+                                // mesh itself to PG Patcher. Only meaningful once PBR generation
+                                // actually resolved a sibling for this texture.
+                                textureGenerator?.TryMirrorPbrTextureSetJson(t.Source!.SourceName, derivedTxst.EditorID!);
+                            }
+
                             derivedTxstCache[cacheKey] = derivedTxst;
                         }
 
