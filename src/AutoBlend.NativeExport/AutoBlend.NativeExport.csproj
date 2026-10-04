@@ -32,4 +32,8 @@
          for AutoSeasons' many fine-grained typed calls. -->
   </PropertyGroup>
 
+  <PropertyGroup>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
+  </PropertyGroup>
+
 </Project>

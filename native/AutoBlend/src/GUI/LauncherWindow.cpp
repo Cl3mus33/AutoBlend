@@ -152,7 +152,6 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     gameTypeChoices.Add(ABTr("launcher.gameType.le", "Skyrim Legendary Edition"));
     m_gameTypeChoice = new wxChoice(generalPanel, wxID_ANY, wxDefaultPosition, wxDefaultSize, gameTypeChoices);
     m_gameTypeChoice->SetSelection(initParams.gameType == ABGameType::SKYRIM_LE ? 1 : 0);
-    m_gameTypeChoice->Bind(wxEVT_CHOICE, &LauncherWindow::onGameTypeChanged, this);
     generalSizer->Add(m_gameTypeChoice, 0, wxEXPAND | wxALL, BORDER_SIZE);
 
     // Output location
@@ -320,18 +319,6 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
         event.Skip();
     });
 
-    // PBR slots - when the winning source for an auto-generated statics texture is itself from a
-    // PBR pack, carry its Height/RMAOS slots into the derived TextureSet too, not just Diffuse/
-    // Normal. Off by default to keep the original vanilla-friendly behavior.
-    m_generatePbrSlotsCheckbox = new wxCheckBox(generalPanel, wxID_ANY, ABTr("launcher.generatePbrSlots.label", "Generate PBR slots"));
-    m_generatePbrSlotsCheckbox->SetValue(initParams.generatePbrSlots);
-    wxFont pbrCheckboxFont = m_generatePbrSlotsCheckbox->GetFont();
-    pbrCheckboxFont.SetPointSize(pbrCheckboxFont.GetPointSize() + 2);
-    m_generatePbrSlotsCheckbox->SetFont(pbrCheckboxFont);
-    generalSizer->Add(m_generatePbrSlotsCheckbox, 0, wxALL, BORDER_SIZE);
-
-    updateGameTypeFieldState();
-
     generalPanel->SetSizer(generalSizer);
     generalPanel->FitInside();
     forwardChoiceWheelToScrollPanel(generalPanel, generalPanel);
@@ -491,7 +478,6 @@ void LauncherWindow::getParams(ABParams& outParams) const
         }
     }
 
-    outParams.generatePbrSlots = m_generatePbrSlotsCheckbox->GetValue();
 }
 
 void LauncherWindow::onLanguageChanged([[maybe_unused]] wxCommandEvent& event)
@@ -527,22 +513,6 @@ void LauncherWindow::onBrowseGameLocation([[maybe_unused]] wxCommandEvent& event
     if (dialog.ShowModal() == wxID_OK) {
         m_gameLocationTextbox->SetValue(dialog.GetPath());
     }
-}
-
-void LauncherWindow::onGameTypeChanged([[maybe_unused]] wxCommandEvent& event)
-{
-    updateGameTypeFieldState();
-}
-
-// PBR shaders are a Community Shaders/SE-era feature - Legendary Edition's engine has no PBR
-// support at all, so generating PBR slots would produce data no LE setup can ever use.
-void LauncherWindow::updateGameTypeFieldState()
-{
-    const bool isLe = m_gameTypeChoice->GetSelection() == 1;
-    if (isLe) {
-        m_generatePbrSlotsCheckbox->SetValue(false);
-    }
-    m_generatePbrSlotsCheckbox->Enable(!isLe);
 }
 
 void LauncherWindow::onBrowseOutputLocation([[maybe_unused]] wxCommandEvent& event)
@@ -698,8 +668,6 @@ void LauncherWindow::applyLoadedParams(const ABParams& params)
     }
     m_autoGenerateAllowlistCtrl->InsertItem(m_autoGenerateAllowlistCtrl->GetItemCount(), "");
 
-    m_generatePbrSlotsCheckbox->SetValue(params.generatePbrSlots);
-    updateGameTypeFieldState();
 
     updateListColumnWidths();
 }

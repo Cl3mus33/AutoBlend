@@ -180,9 +180,6 @@ auto ABConfig::loadFrom(const filesystem::path& configFilePath) -> ABParams
         if (configJ.contains("AutoGenerateMissingStatics")) {
             params.autoGenerateMissingStatics = configJ["AutoGenerateMissingStatics"].get<bool>();
         }
-        if (configJ.contains("GeneratePbrSlots")) {
-            params.generatePbrSlots = configJ["GeneratePbrSlots"].get<bool>();
-        }
         if (configJ.contains("AutoGenerateAllowlist")) {
             params.autoGenerateAllowlist.clear();
             for (const auto& item : configJ["AutoGenerateAllowlist"]) {
@@ -230,7 +227,6 @@ auto ABConfig::toJson(const ABParams& params) -> nlohmann::json
 
     configJ["TextureSetNamingTemplate"] = StringUtil::utf16toUTF8(params.textureSetNamingTemplate);
     configJ["AutoGenerateMissingStatics"] = params.autoGenerateMissingStatics;
-    configJ["GeneratePbrSlots"] = params.generatePbrSlots;
 
     configJ["AutoGenerateAllowlist"] = nlohmann::json::array();
     for (const auto& item : params.autoGenerateAllowlist) {

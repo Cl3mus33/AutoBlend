@@ -218,7 +218,7 @@ public sealed class PatchOrchestrator
         }
 
         var folderDetector = new LandscapeFolderDetector(
-            _settings.LandscapeFolderRules, fileProbe, textureGenerator, effectiveAllowlist, _settings.GeneratePbrSlots);
+            _settings.LandscapeFolderRules, fileProbe, textureGenerator, effectiveAllowlist, _settings.GameType != GameType.SkyrimLE);
         var blacklist = new BlacklistEvaluator(_settings);
 
         // Runs before any mesh/record scanning, as its own explicit phase: the allowlist is a

@@ -56,9 +56,6 @@
       "help": "Solo estas texturas difusas de origen (relativas a Data, p. ej. \"textures\\landscape\\dirt01.dds\") reciben una textura statics faltante generada automáticamente. Comodines (*) permitidos. Clic derecho para añadir/quitar filas.",
       "column": "Textura"
     },
-    "generatePbrSlots": {
-      "label": "Generar slots PBR"
-    },
     "tab": {
       "general": "General",
       "options": "Opciones"

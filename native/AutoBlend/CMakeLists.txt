@@ -67,7 +67,6 @@ execute_process(
     COMMAND dotnet restore "${NATIVEEXPORT_CSPROJ}"
         --packages "${NATIVEEXPORT_NUGET_DIR}"
         -r win-x64
-        /p:BaseIntermediateOutputPath=${NATIVEEXPORT_OBJ_DIR}/
         /p:BaseOutputPath=${NATIVEEXPORT_BIN_DIR}/
     WORKING_DIRECTORY "${NATIVEEXPORT_PROJECT_DIR}"
     RESULT_VARIABLE _nuget_restore_result
@@ -110,7 +109,6 @@ add_custom_command(
         --self-contained true
         -p:Platform=x64
         -p:OutputPath=${NATIVEEXPORT_BIN_DIR}/
-        -p:BaseIntermediateOutputPath=${NATIVEEXPORT_OBJ_DIR}/
         --output ${NATIVEEXPORT_BIN_DIR}/
     DEPENDS
         ${CSHARP_SOURCES}

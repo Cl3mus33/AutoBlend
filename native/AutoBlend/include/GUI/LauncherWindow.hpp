@@ -53,14 +53,11 @@ private:
     PGModifiableListCtrl* m_editorIdKeywordsCtrl;
     wxDialog* m_autoGenerateAllowlistDialog;
     PGModifiableListCtrl* m_autoGenerateAllowlistCtrl;
-    wxCheckBox* m_generatePbrSlotsCheckbox;
     wxButton* m_okButton;
 
     void onLanguageChanged(wxCommandEvent& event);
     void onThemeChanged(wxCommandEvent& event);
     void onBrowseGameLocation(wxCommandEvent& event);
-    void onGameTypeChanged(wxCommandEvent& event);
-    void updateGameTypeFieldState();
     void onBrowseOutputLocation(wxCommandEvent& event);
     void onBrowseMo2Instance(wxCommandEvent& event);
     void onModManagerChanged(wxCommandEvent& event);

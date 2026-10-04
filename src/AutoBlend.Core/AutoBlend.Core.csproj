@@ -11,4 +11,8 @@
     <PackageReference Include="niflysharp" Version="1.3.0" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
+  </PropertyGroup>
+
 </Project>
