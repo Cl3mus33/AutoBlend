@@ -5,6 +5,8 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [1.2.13] - 2026-10-04
+
 ### Changed
 - **"Generate PBR slots" now sits at the top of the General tab, above the blacklist tables, with a one-line
   explanation.** Left unticked with a PBR pack installed, no PBR blend texture or PBRNifPatcher json is generated
