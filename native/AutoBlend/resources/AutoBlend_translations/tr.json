@@ -56,6 +56,9 @@
       "help": "Yalnızca bu kaynak diffuse dokularına (Data klasörüne göreli; ör. \"textures\\landscape\\dirt01.dds\") eksik statics eş dokusu otomatik olarak oluşturulur. Joker karakterlere (*) izin verilir. Satır eklemek/kaldırmak için sağ tıklayın.",
       "column": "Doku"
     },
+    "generatePbrSlots": {
+      "label": "PBR Yuvalarını Oluştur"
+    },
     "tab": {
       "general": "Genel",
       "options": "Seçenekler"

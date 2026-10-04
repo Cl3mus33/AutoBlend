@@ -5,23 +5,6 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
-## [1.2.13] - 2026-10-04
-
-### Fixed
-- **Low-resolution vanilla textures in the blend areas (rock and mountain slabs, tundra) with a PBR pack
-  installed.** Reported on Nexus (synax1337, Vanilla PBR AIO + Vanaheimr Landscapes AIO, AutoBlend then PG
-  Patcher). Since 1.2.11 the derived TextureSets no longer carry `pbr\` paths: PG Patcher is meant to convert the
-  "blend" texture itself, which only works if a PBR blend texture and a PBRNifPatcher json exist for it. Both
-  were only generated when "Generate PBR slots" was ticked - and it is off by default. With it off, the
-  only blend texture written was a copy of the vanilla-path file (1024-2048 px on a real load order, 4096 px
-  for the PBR pack's own) and PG Patcher found nothing to convert, so the low-resolution copy was what the
-  game showed. The PBR sibling of a landscape texture is now always looked for (Skyrim SE), the option is
-  removed from the launcher, and a settings file that still has it set to false is read without error.
-  Measured on a real load order with the option off: 0 PBR blend textures before, 21 after (4096 px) plus the
-  PBRNifPatcher json.
-- The PBR blend textures are large (4096 px, about 20 MB each): expect a bigger output folder and a longer
-  run on a load order with a PBR pack, as with the option ticked before.
-
 ## [1.2.12] - 2026-10-03
 
 ### Fixed

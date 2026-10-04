@@ -99,9 +99,15 @@ public sealed class PatcherSettings
     /// like "textures\mymod\landscape\*") for any other texture pack's own base landscape textures.
     /// </summary>
     /// <summary>
-    /// No longer used: since 1.2.13 a PBR sibling of a landscape texture is always looked for (Skyrim SE only),
-    /// so the blend texture and the PBRNifPatcher / PBRTextureSets json PG Patcher needs to convert it are
-    /// always generated. Kept so that older settings files still load.
+    /// When true, AutoBlend also actively looks for and generates a PBR sibling (Height/RMAOS,
+    /// following Skyrim's "_p"/"_rmaos" suffix convention) for a landscape texture that doesn't
+    /// already have complex-material data of its own. A derived TextureSet's Height/RMAOS slots
+    /// always carry forward whatever the winning source TextureSet already had there, regardless
+    /// of this setting - vanilla Skyrim's own complex-material textures (e.g. "Landscape\Dirt02.dds",
+    /// which ships its own "_p.dds"/"_m.dds") already populate these slots, and dropping that data
+    /// on every derived TextureSet whenever this was off produced real "purple"/broken-texture
+    /// reports, not just for PBR-off users specifically. False (default) only affects whether NEW
+    /// PBR files get generated for textures that don't already have Height/RMAOS data.
     /// </summary>
     public bool GeneratePbrSlots { get; set; }
 
