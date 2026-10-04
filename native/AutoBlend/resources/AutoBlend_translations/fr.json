@@ -57,7 +57,8 @@
       "column": "Texture"
     },
     "generatePbrSlots": {
-      "label": "Générer les slots PBR"
+      "label": "Générer les slots PBR",
+      "help": "Nécessaire quand un pack de textures PBR est installé : génère la version PBR de chaque texture blend et le json que PG Patcher utilise pour la convertir. Décochée, les zones de blend affichent la texture vanilla basse résolution."
     },
     "tab": {
       "general": "Général",

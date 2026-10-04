@@ -5,6 +5,12 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+- **"Generate PBR slots" now sits at the top of the General tab, above the blacklist tables, with a one-line
+  explanation.** Left unticked with a PBR pack installed, no PBR blend texture or PBRNifPatcher json is generated
+  for PG Patcher to convert, and the blend areas show the low-resolution vanilla texture (reported on Nexus).
+  The option itself and its default (off) are unchanged.
+
 ## [1.2.12] - 2026-10-03
 
 ### Fixed

@@ -216,6 +216,22 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
     m_mo2ProfileChoice = new wxChoice(generalPanel, wxID_ANY);
     generalSizer->Add(m_mo2ProfileChoice, 0, wxEXPAND | wxALL, BORDER_SIZE);
 
+    // PBR slots - when the winning source for an auto-generated statics texture is itself from a
+    // PBR pack, carry its Height/RMAOS slots into the derived TextureSet too, not just Diffuse/
+    // Normal. Off by default to keep the original vanilla-friendly behavior.
+    m_generatePbrSlotsCheckbox = new wxCheckBox(generalPanel, wxID_ANY, ABTr("launcher.generatePbrSlots.label", "Generate PBR slots"));
+    m_generatePbrSlotsCheckbox->SetValue(initParams.generatePbrSlots);
+    wxFont pbrCheckboxFont = m_generatePbrSlotsCheckbox->GetFont();
+    pbrCheckboxFont.SetPointSize(pbrCheckboxFont.GetPointSize() + 2);
+    m_generatePbrSlotsCheckbox->SetFont(pbrCheckboxFont);
+    generalSizer->Add(m_generatePbrSlotsCheckbox, 0, wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
+
+    auto* generatePbrSlotsHelpText = new wxStaticText(generalPanel, wxID_ANY,
+        ABTr("launcher.generatePbrSlots.help",
+            "Needed when a PBR texture pack is installed: generates the PBR version of each blend texture and the json PG Patcher uses to convert it. Left off, the blend areas show the low-resolution vanilla texture."));
+    generatePbrSlotsHelpText->Wrap(520);
+    generalSizer->Add(generatePbrSlotsHelpText, 0, wxLEFT | wxRIGHT | wxBOTTOM, BORDER_SIZE);
+
     // Mesh blacklist - inline editable table, same pattern as AutoSeasons' own blocklist.
     generalSizer->Add(makeSectionLabel(generalPanel, ABTr("launcher.meshBlacklist.label", "Mesh Blacklist")), 0,
         wxLEFT | wxRIGHT | wxTOP, BORDER_SIZE);
@@ -319,16 +335,6 @@ LauncherWindow::LauncherWindow(const ABParams& initParams, filesystem::path exeP
         }
         event.Skip();
     });
-
-    // PBR slots - when the winning source for an auto-generated statics texture is itself from a
-    // PBR pack, carry its Height/RMAOS slots into the derived TextureSet too, not just Diffuse/
-    // Normal. Off by default to keep the original vanilla-friendly behavior.
-    m_generatePbrSlotsCheckbox = new wxCheckBox(generalPanel, wxID_ANY, ABTr("launcher.generatePbrSlots.label", "Generate PBR slots"));
-    m_generatePbrSlotsCheckbox->SetValue(initParams.generatePbrSlots);
-    wxFont pbrCheckboxFont = m_generatePbrSlotsCheckbox->GetFont();
-    pbrCheckboxFont.SetPointSize(pbrCheckboxFont.GetPointSize() + 2);
-    m_generatePbrSlotsCheckbox->SetFont(pbrCheckboxFont);
-    generalSizer->Add(m_generatePbrSlotsCheckbox, 0, wxALL, BORDER_SIZE);
 
     updateGameTypeFieldState();
 
